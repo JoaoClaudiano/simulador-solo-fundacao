@@ -1,0 +1,18 @@
+{
+  "solos_tipicos": [
+    {
+      "nome": "Argila Mole",
+      "c_kPa": 5,
+      "phi_graus": 0,
+      "gamma_kN_m3": 16,
+      "descricao": "Baixa resistência, alta compressibilidade"
+    },
+    {
+      "nome": "Areia Média",
+      "c_kPa": 0,
+      "phi_graus": 32,
+      "gamma_kN_m3": 18,
+      "descricao": "Boa resistência, baixa compressibilidade"
+    }
+  ]
+}

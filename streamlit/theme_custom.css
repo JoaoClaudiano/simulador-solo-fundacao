@@ -1,0 +1,133 @@
+/* Custom CSS para o Simulador Solo-Fundações */
+
+/* ====================== CORES PERSONALIZADAS ====================== */
+:root {
+    /* Cores para indicadores de segurança */
+    --color-safe: #4CAF50;
+    --color-warning: #FF9800;
+    --color-danger: #F44336;
+    
+    /* Cores temáticas */
+    --color-soil: #8B4513;      /* Marrom solo */
+    --color-concrete: #757575;  /* Cinza concreto */
+    --color-steel: #607D8B;     /* Azul aço */
+    --color-water: #2196F3;     /* Azul água */
+}
+
+/* ====================== ESTILOS GERAIS ====================== */
+/* Melhorar legibilidade */
+p, li, td {
+    line-height: 1.6;
+}
+
+/* Headers com gradiente */
+h1, h2, h3 {
+    background: linear-gradient(90deg, var(--color-soil), var(--color-concrete));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ====================== COMPONENTES ESPECÍFICOS ====================== */
+/* Sliders com cores temáticas */
+.stSlider > div > div > div > div {
+    background-color: var(--color-soil) !important;
+}
+
+/* Botões personalizados */
+.stButton > button {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+/* Métricas (cartões) */
+[data-testid="stMetricValue"] {
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+}
+
+/* Alertas customizados */
+.stAlert {
+    border-radius: 8px !important;
+    border-left: 4px solid !important;
+}
+
+/* ====================== GRÁFICOS PLOTLY ====================== */
+/* Container de gráficos */
+.js-plotly-plot {
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
+
+/* ====================== SIDEBAR ====================== */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F5F5F5 100%) !important;
+    border-right: 1px solid #E0E0E0 !important;
+}
+
+/* ====================== RESPONSIVIDADE ====================== */
+@media (max-width: 768px) {
+    /* Ajustes para mobile */
+    .stApp {
+        padding: 0.5rem !important;
+    }
+    
+    [data-testid="stMetricValue"] {
+        font-size: 1.4rem !important;
+    }
+}
+
+/* ====================== ANIMAÇÕES ====================== */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.stApp {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* ====================== TABS PERSONALIZADAS ====================== */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 2px !important;
+}
+
+.stTabs [data-baseweb="tab"] {
+    border-radius: 4px 4px 0 0 !important;
+    padding: 10px 20px !important;
+    font-weight: 500 !important;
+}
+
+/* ====================== EXPANDERS ====================== */
+.streamlit-expanderHeader {
+    font-weight: 600 !important;
+    background-color: #F8F9FA !important;
+    border-radius: 4px !important;
+}
+
+/* ====================== TOOLTIPS ====================== */
+[data-testid="stTooltip"] {
+    max-width: 300px !important;
+    font-size: 0.9rem !important;
+}
+
+/* ====================== FOOTER PERSONALIZADO ====================== */
+footer {
+    visibility: hidden;
+}
+
+/* Criar nosso próprio footer */
+.footer-custom {
+    text-align: center;
+    padding: 1rem;
+    color: #666;
+    font-size: 0.8rem;
+    border-top: 1px solid #E0E0E0;
+    margin-top: 2rem;
+}

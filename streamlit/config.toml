@@ -1,14 +1,66 @@
+# ====================== CONFIGURAÇÕES DE TEMA ======================
 [theme]
-primaryColor = "#4CAF50"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#262730"
+# Cores principais (tema verde para engenharia)
+primaryColor = "#2E7D32"       # Verde escuro - profissional
+backgroundColor = "#FFFFFF"     # Branco
+secondaryBackgroundColor = "#F5F5F5"  # Cinza muito claro
+textColor = "#263238"          # Azul muito escuro (quase preto)
 font = "sans serif"
 
+# ====================== CONFIGURAÇÕES DO SERVIDOR ======================
 [server]
-maxUploadSize = 100
+# Segurança
 enableCORS = false
 enableXsrfProtection = true
+maxUploadSize = 50  # MB
 
+# Performance
+enableStaticServing = true
+
+# ====================== CONFIGURAÇÕES DO NAVEGADOR ======================
 [browser]
+# Otimizações
 gatherUsageStats = false
+serverAddress = "localhost"
+
+# ====================== CONFIGURAÇÕES DO CLIENTE ======================
+[client]
+# Cache
+caching = true
+showErrorDetails = false
+
+# ====================== CONFIGURAÇÕES DE DEPLOY ======================
+[runner]
+# Para deployment na nuvem
+magicEnabled = false
+installTracer = false
+fixMatplotlib = true
+
+# ====================== CONFIGURAÇÕES DE LOG ======================
+[logger]
+# Logs (útil para debugging)
+level = "info"
+messageFormat = "%(asctime)s %(message)s"
+
+# ====================== CONFIGURAÇÕES DE EMAIL ======================
+# [smtp]
+# host = "smtp.gmail.com"
+# port = 587
+# username = "seu-email@gmail.com"
+# password = "sua-senha"  # Use secrets para isso!
+
+# ====================== CONFIGURAÇÕES DE MAPA ======================
+# [mapbox]
+# token = "seu-token-mapbox"  # Para mapas interativos
+
+# ====================== CONFIGURAÇÕES DE PLOTLY ======================
+[plotly]
+# Para gráficos 3D
+theme = "plotly_white"
+
+# ====================== CONFIGURAÇÕES PERSONALIZADAS ======================
+[custom]
+# Suas configurações personalizadas
+app_name = "Simulador Solo-Fundações"
+version = "1.0.0"
+author = "Estudante Engenharia Civil"

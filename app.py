@@ -641,7 +641,7 @@ def shallow_foundation_page():
             st.markdown("#### Método 2:1 Simplificado")
             # Gerar bulbo 2:1 usando a nova classe
             bulbo = BulboTensoes()
-            X_21, Z_21, sigma_21 = bulbo.gerar_bulbo_21(B, L)
+            X_21, Z_21, sigma_21 = bulbo.gerar_bulbo_21(B, L, depth_ratio=3.0)
             
             fig_21 = go.Figure(data=
                 go.Contour(
@@ -696,7 +696,7 @@ def shallow_foundation_page():
             with st.spinner("Calculando bulbo de Boussinesq..."):
                 # Gerar bulbo Boussinesq
                 X_b, Y_b, Z_b, sigma_b = bulbo.gerar_bulbo_boussinesq(
-                    q_applied, B, L, grid_size=resolucao
+                    q_applied, B, L, depth_ratio=3.0, grid_size=resolucao
                 )
                 
                 # Pegar slice central (y=0)
@@ -750,7 +750,7 @@ def shallow_foundation_page():
             st.markdown("#### Comparativo: Método 2:1 vs Boussinesq")
             
             bulbo = BulboTensoes()
-            fig_comparativo = bulbo.plot_comparativo_bulbos(q_applied, B, L)
+            fig_comparativo = bulbo.plot_comparativo_bulbos(q_applied, B, L, depth_ratio=3.0)  # CORRIGIDO
             st.plotly_chart(fig_comparativo, use_container_width=True)
             
             # Relatório técnico
@@ -811,7 +811,7 @@ def deep_foundation_page():
         st.error("Módulo de fundações não carregado!")
         return
     
-    tab_config, tab_results = st.tabs(["⚙️ Configuração", "📊 Resultados"])
+    tab_config, tab_results, tab_bulbo = st.tabs(["⚙️ Configuração", "📊 Resultados", "📈 Bulbo de Tensões"])
     
     with tab_config:
         col_geom, col_soil = st.columns(2)
@@ -1015,6 +1015,172 @@ def deep_foundation_page():
                 st.plotly_chart(fig_profile, use_container_width=True)
         else:
             st.info("Configure a estaca e clique em 'Analisar Estaca' para ver os resultados.")
+    
+    with tab_bulbo:
+        st.markdown("### 📈 Bulbo de Tensões da Estaca")
+        
+        if analyze_pile and 'analysis_results' in st.session_state:
+            # Obter resultados da análise
+            total_capacity = st.session_state.analysis_results.get('total_capacity', 0)
+            shaft_capacity = st.session_state.analysis_results.get('shaft_capacity', 0)
+            tip_capacity = st.session_state.analysis_results.get('tip_capacity', 0)
+            pile_diameter = st.session_state.analysis_results.get('diameter', 0.5)
+            pile_length = st.session_state.analysis_results.get('length', 15.0)
+            
+            st.info(f"""
+            **Cargas calculadas:**
+            - Total: {total_capacity:.0f} kN
+            - Atrito lateral: {shaft_capacity:.0f} kN ({shaft_capacity/total_capacity*100:.1f}%)
+            - Ponta: {tip_capacity:.0f} kN ({tip_capacity/total_capacity*100:.1f}%)
+            """)
+            
+            # Configurações do bulbo
+            col_depth, col_res = st.columns(2)
+            with col_depth:
+                depth_ratio = st.slider(
+                    "Profundidade relativa", 
+                    1.0, 5.0, 3.0, 0.5,
+                    key="depth_estaca",
+                    help="Razão entre profundidade máxima e diâmetro"
+                )
+            
+            with col_res:
+                grid_size = st.slider(
+                    "Resolução da malha", 
+                    20, 100, 50, 10,
+                    key="res_estaca",
+                    help="Maior resolução = mais preciso, mas mais lento"
+                )
+            
+            if st.button("Gerar Bulbo de Tensões", type="primary", key="btn_bulbo_estaca"):
+                with st.spinner("Calculando bulbo de tensões..."):
+                    try:
+                        # Criar instância do bulbo
+                        bulbo = BulboTensoes()
+                        
+                        # Gerar bulbos para estaca
+                        # Para estacas, usamos carga pontual (Boussinesq)
+                        Q_ponta = tip_capacity
+                        Q_lateral = shaft_capacity
+                        
+                        # Calcular pressão lateral equivalente (simplificado)
+                        area_lateral = np.pi * pile_diameter * pile_length
+                        q_lateral = Q_lateral / area_lateral if area_lateral > 0 else 0
+                        
+                        # Gerar bulbos
+                        X_ponta, Z_ponta, sigma_ponta = bulbo.bulbo_estaca_ponta(
+                            Q_ponta, pile_diameter, depth_ratio, grid_size
+                        )
+                        
+                        X_atrito, Z_atrito, sigma_atrito = bulbo.bulbo_estaca_atrito(
+                            q_lateral, pile_diameter, pile_length, depth_ratio, grid_size
+                        )
+                        
+                        # Calcular total
+                        sigma_total = sigma_ponta + sigma_atrito
+                        
+                        # Criar gráficos
+                        fig = make_subplots(
+                            rows=1, cols=3,
+                            subplot_titles=('Ponta', 'Atrito Lateral', 'Total'),
+                            specs=[[{'type': 'contour'}, {'type': 'contour'}, {'type': 'contour'}]]
+                        )
+                        
+                        # Normalizar para porcentagem da carga total
+                        if total_capacity > 0:
+                            sigma_ponta_pct = sigma_ponta / total_capacity * 100
+                            sigma_atrito_pct = sigma_atrito / total_capacity * 100
+                            sigma_total_pct = sigma_total / total_capacity * 100
+                        else:
+                            sigma_ponta_pct = sigma_ponta
+                            sigma_atrito_pct = sigma_atrito
+                            sigma_total_pct = sigma_total
+                        
+                        # Plot ponta
+                        fig.add_trace(
+                            go.Contour(
+                                z=sigma_ponta_pct,
+                                x=X_ponta[0, :],
+                                y=Z_ponta[:, 0],
+                                colorscale='Blues',
+                                contours=dict(start=0, end=100, size=10),
+                                colorbar=dict(title="% da Carga", x=0.3),
+                                name="Ponta",
+                                hovertemplate="X: %{x:.2f}m<br>Z: %{y:.2f}m<br>Contribuição: %{z:.1f}%<extra></extra>"
+                            ),
+                            row=1, col=1
+                        )
+                        
+                        # Plot atrito
+                        fig.add_trace(
+                            go.Contour(
+                                z=sigma_atrito_pct,
+                                x=X_atrito[0, :],
+                                y=Z_atrito[:, 0],
+                                colorscale='Greens',
+                                contours=dict(start=0, end=100, size=10),
+                                colorbar=dict(title="% da Carga", x=0.63),
+                                name="Atrito",
+                                hovertemplate="X: %{x:.2f}m<br>Z: %{y:.2f}m<br>Contribuição: %{z:.1f}%<extra></extra>"
+                            ),
+                            row=1, col=2
+                        )
+                        
+                        # Plot total
+                        fig.add_trace(
+                            go.Contour(
+                                z=sigma_total_pct,
+                                x=X_ponta[0, :],
+                                y=Z_ponta[:, 0],
+                                colorscale='Viridis',
+                                contours=dict(start=0, end=100, size=10),
+                                colorbar=dict(title="% da Carga", x=1.0),
+                                name="Total",
+                                hovertemplate="X: %{x:.2f}m<br>Z: %{y:.2f}m<br>Tensão: %{z:.1f}%<extra></extra>"
+                            ),
+                            row=1, col=3
+                        )
+                        
+                        # Configurar layout
+                        fig.update_layout(
+                            title_text=f"Bulbo de Tensões - Estaca (D={pile_diameter}m, L={pile_length}m)",
+                            height=400,
+                            showlegend=False
+                        )
+                        
+                        # Atualizar eixos
+                        for col in [1, 2, 3]:
+                            fig.update_xaxes(title_text="Distância (m)", row=1, col=col)
+                            fig.update_yaxes(title_text="Profundidade (m)", autorange='reversed', row=1, col=col)
+                        
+                        # Adicionar estaca
+                        for col in [1, 2, 3]:
+                            fig.add_shape(
+                                type="rect",
+                                x0=-pile_diameter/2, y0=0,
+                                x1=pile_diameter/2, y1=-pile_length,
+                                line=dict(color="red", width=2),
+                                fillcolor="rgba(255,0,0,0.1)",
+                                row=1, col=col
+                            )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Explicação
+                        st.info("""
+                        **Interpretação do Bulbo:**
+                        - **Ponta**: Contribuição da resistência de ponta (carga pontual)
+                        - **Atrito Lateral**: Contribuição do atrito ao longo do fuste (carga distribuída)
+                        - **Total**: Soma das duas contribuições
+                        
+                        **Nota:** O bulbo mostra a distribuição percentual da tensão vertical em relação à carga total.
+                        """)
+                        
+                    except Exception as e:
+                        st.error(f"Erro ao gerar bulbo: {str(e)}")
+                        st.info("Tente reduzir a resolução da malha.")
+        else:
+            st.info("Configure e analise a estaca primeiro para ver o bulbo de tensões.")
 
 def export_page():
     """Página de exportação de resultados"""

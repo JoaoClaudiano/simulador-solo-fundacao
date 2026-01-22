@@ -173,9 +173,17 @@ class BulboTensoes:
         
         return X, Z, sigma_grid
     
-    def plot_comparativo_bulbos(self, q, B, L):
+    def plot_comparativo_bulbos(self, q, B, L, depth_ratio=3.0):
         """
         Cria gráfico comparativo entre métodos
+        
+        Args:
+            q: Pressão aplicada (kPa)
+            B: Largura da sapata (m)
+            L: Comprimento da sapata (m)
+            depth_ratio: Razão profundidade/largura (padrão 3.0 m)
+            
+        
         """
         # Gerar dados para ambos métodos
         X_21, Z_21, sigma_21 = self.gerar_bulbo_21(B, L)

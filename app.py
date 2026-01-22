@@ -35,13 +35,13 @@ try:
     from src.foundation_calculations import (
         bearing_capacity_terzaghi,
         elastic_settlement,
-        stress_bulb,
         pile_ultimate_capacity,
         pile_settlement,
         safety_factor,
         generate_report
     )
     from src.soil_calculations import shear_strength
+    from src.bulbo_tensoes import BulboTensoes
     
     MODULES_LOADED = True
 except ImportError as e:
@@ -84,7 +84,7 @@ def create_sidebar():
         app_mode = st.selectbox(
             "Módulo Principal",
             ["Início", "Análise de Solo", "Sapatas", "Estacas", 
-             "Exportação", "Validação NBR", "Documentação"]
+             "Exportação", "Validação NBR", "Documentação", "Banco de Solos"]
         )
         
         st.divider()
@@ -169,6 +169,8 @@ def home_page():
         ✅ **Validação normativa** (NBR 6122 e NBR 6118)  
         ✅ **Sistema de exportação** (CSV, Excel, PDF, HTML)  
         ✅ **Visualizações interativas** (Plotly 3D, gráficos dinâmicos)  
+        ✅ **Bulbo de tensões real** (Boussinesq)  
+        ✅ **Banco de dados de solos**  
         
         ## 🎯 Objetivos
         
@@ -196,6 +198,8 @@ def home_page():
         - ✅ Fundações (Sapatas/Estacas)
         - ✅ Exportação de Dados
         - ✅ Validação NBR
+        - ✅ Bulbo de Tensões (Boussinesq)
+        - ✅ Banco de Dados de Solos
         
         **Próximos Passos:**
         1. Testar cada módulo
@@ -204,7 +208,7 @@ def home_page():
         """)
         
         # Métricas rápidas
-        st.metric("Versão", "1.0.0")
+        st.metric("Versão", "2.0.0")
         st.metric("Última Atualização", datetime.now().strftime("%d/%m/%Y"))
         
         # Início rápido
@@ -214,6 +218,9 @@ def home_page():
                 st.rerun()
             if st.button("Ir para Sapatas"):
                 st.session_state.app_mode = "Sapatas"
+                st.rerun()
+            if st.button("Ir para Banco de Solos"):
+                st.session_state.app_mode = "Banco de Solos"
                 st.rerun()
     
     # Exemplos de aplicação
@@ -228,6 +235,7 @@ def home_page():
         - Compreender o círculo de Mohr
         - Visualizar envoltória de ruptura
         - Analisar transformação de tensões
+        - Comparar bulbos de tensões
         """)
     
     with examples[1]:
@@ -236,6 +244,7 @@ def home_page():
         - Dimensionamento preliminar
         - Análise de capacidade de carga
         - Verificação de recalques
+        - Validação com normas
         """)
     
     with examples[2]:
@@ -244,6 +253,7 @@ def home_page():
         - Validação com normas
         - Geração de relatórios
         - Análise paramétrica
+        - Banco de dados de solos
         """)
 
 def soil_analysis_page():
@@ -550,9 +560,6 @@ def shallow_foundation_page():
                 # Calcular fator de segurança
                 FS, is_safe = safety_factor(q_ult, q_applied, 3.0)
                 
-                # Gerar bulbo de tensões
-                X, Z, stress_ratio = stress_bulb(B, L)
-                
                 # Armazenar resultados
                 st.session_state.analysis_results.update({
                     'foundation_type': 'shallow',
@@ -573,44 +580,8 @@ def shallow_foundation_page():
                     'Nγ': Nγ
                 })
                 
-                # Criar visualização do bulbo
-                fig_bulb = go.Figure(data=
-                    go.Contour(
-                        z=stress_ratio * 100,
-                        x=X[0, :],
-                        y=Z[:, 0],
-                        colorscale='Viridis',
-                        contours=dict(
-                            start=0,
-                            end=100,
-                            size=10
-                        ),
-                        colorbar=dict(title="Δσ/q [%]"),
-                        hovertemplate="X: %{x:.2f} m<br>Z: %{y:.2f} m<br>Δσ/q: %{z:.1f}%<extra></extra>"
-                    )
-                )
-                
-                fig_bulb.update_layout(
-                    title="📈 Bulbo de Tensões - Distribuição de Δσ/q",
-                    xaxis_title="Distância do centro [m]",
-                    yaxis_title="Profundidade [m]",
-                    yaxis=dict(autorange='reversed'),
-                    height=500
-                )
-                
-                # Adicionar contorno da sapata
-                fig_bulb.add_shape(
-                    type="rect",
-                    x0=-B/2, y0=0,
-                    x1=B/2, y1=-0.1,
-                    line=dict(color="red", width=2),
-                    fillcolor="rgba(255,0,0,0.1)"
-                )
-                
-                st.session_state.figures = [fig_bulb]
-                
                 # Exibir resultados
-                placeholder.plotly_chart(fig_bulb, use_container_width=True)
+                placeholder.markdown("### 📊 Resultados Calculados")
                 
                 # Métricas
                 col_res1, col_res2, col_res3 = st.columns(3)
@@ -640,7 +611,6 @@ def shallow_foundation_page():
                         st.info("📏 Recalque dentro do limite")
                     else:
                         st.warning("📏 Recalque excessivo - verificar")
-        
         else:
             # Exibir imagem ilustrativa inicial
             placeholder.info("""
@@ -659,6 +629,141 @@ def shallow_foundation_page():
             • Bulbo de tensões
             • Validação conforme NBR 6122
             """)
+    
+    # Abas para bulbos de tensões
+    st.divider()
+    st.markdown("### 📈 Bulbos de Tensões")
+    
+    tab_bulbo1, tab_bulbo2, tab_bulbo3 = st.tabs(["Método 2:1", "Método Boussinesq", "Comparativo"])
+    
+    with tab_bulbo1:
+        if analyze_button:
+            st.markdown("#### Método 2:1 Simplificado")
+            # Gerar bulbo 2:1 usando a nova classe
+            bulbo = BulboTensoes()
+            X_21, Z_21, sigma_21 = bulbo.gerar_bulbo_21(B, L)
+            
+            fig_21 = go.Figure(data=
+                go.Contour(
+                    z=sigma_21 * 100,
+                    x=X_21[0, :],
+                    y=Z_21[:, 0],
+                    colorscale='Viridis',
+                    contours=dict(start=0, end=100, size=10),
+                    colorbar=dict(title="Δσ/q [%]"),
+                    hovertemplate="X: %{x:.2f}m<br>Z: %{y:.2f}m<br>Δσ/q: %{z:.1f}%<extra></extra>"
+                )
+            )
+            
+            fig_21.update_layout(
+                title="Bulbo de Tensões - Método 2:1 Simplificado",
+                xaxis_title="Distância do centro [m]",
+                yaxis_title="Profundidade [m]",
+                yaxis=dict(autorange='reversed'),
+                height=500
+            )
+            
+            # Adicionar contorno da sapata
+            fig_21.add_shape(
+                type="rect",
+                x0=-B/2, y0=0,
+                x1=B/2, y1=-0.1,
+                line=dict(color="red", width=2),
+                fillcolor="rgba(255,0,0,0.1)"
+            )
+            
+            st.plotly_chart(fig_21, use_container_width=True)
+            
+            st.info("**Método 2:1 Simplificado:** Aproximação prática com propagação 2V:1H (26.6°).")
+    
+    with tab_bulbo2:
+        if analyze_button:
+            st.markdown("#### Método de Boussinesq (Real)")
+            bulbo = BulboTensoes()
+            
+            # Configurações para Boussinesq
+            col_method, col_res = st.columns(2)
+            with col_method:
+                metodo = st.selectbox(
+                    "Método de cálculo",
+                    ["newmark", "integration"],
+                    format_func=lambda x: "Newmark (rápido)" if x == "newmark" else "Integração (preciso)",
+                    key="metodo_boussinesq"
+                )
+                
+                resolucao = st.slider("Resolução da malha", 20, 100, 50, 10, key="res_boussinesq")
+            
+            with st.spinner("Calculando bulbo de Boussinesq..."):
+                # Gerar bulbo Boussinesq
+                X_b, Y_b, Z_b, sigma_b = bulbo.gerar_bulbo_boussinesq(
+                    q_applied, B, L, grid_size=resolucao
+                )
+                
+                # Pegar slice central (y=0)
+                center_slice = sigma_b[:, sigma_b.shape[1]//2, :] / q_applied * 100
+                X_b_slice = X_b[:, 0, :]
+                Z_b_slice = Z_b[:, 0, :]
+                
+                fig_bouss = go.Figure(data=
+                    go.Contour(
+                        z=center_slice,
+                        x=X_b_slice[0, :],
+                        y=Z_b_slice[:, 0],
+                        colorscale='Plasma',
+                        contours=dict(start=0, end=100, size=10),
+                        colorbar=dict(title="Δσ/q [%]"),
+                        hovertemplate="X: %{x:.2f}m<br>Z: %{y:.2f}m<br>Δσ/q: %{z:.1f}%<extra></extra>"
+                    )
+                )
+                
+                fig_bouss.update_layout(
+                    title="Bulbo de Tensões - Método de Boussinesq",
+                    xaxis_title="Distância do centro [m]",
+                    yaxis_title="Profundidade [m]",
+                    yaxis=dict(autorange='reversed'),
+                    height=500
+                )
+                
+                # Adicionar contorno da sapata
+                fig_bouss.add_shape(
+                    type="rect",
+                    x0=-B/2, y0=0,
+                    x1=B/2, y1=-0.1,
+                    line=dict(color="red", width=2),
+                    fillcolor="rgba(255,0,0,0.1)"
+                )
+                
+                st.plotly_chart(fig_bouss, use_container_width=True)
+                
+                # Calcular profundidade de influência
+                z_10 = bulbo.calcular_profundidade_influencia(B, L, 0.10)
+                z_20 = bulbo.calcular_profundidade_influencia(B, L, 0.20)
+                
+                st.info(f"""
+                **Profundidades de influência:**
+                - Até 20% de q: **{z_20:.2f} m** ({z_20/B:.1f}×B)
+                - Até 10% de q: **{z_10:.2f} m** ({z_10/B:.1f}×B)
+                """)
+    
+    with tab_bulbo3:
+        if analyze_button:
+            st.markdown("#### Comparativo: Método 2:1 vs Boussinesq")
+            
+            bulbo = BulboTensoes()
+            fig_comparativo = bulbo.plot_comparativo_bulbos(q_applied, B, L)
+            st.plotly_chart(fig_comparativo, use_container_width=True)
+            
+            # Relatório técnico
+            with st.expander("📊 Relatório Técnico Comparativo"):
+                relatorio = bulbo.relatorio_tecnico_bulbo(q_applied, B, L)
+                st.text(relatorio)
+                
+                st.download_button(
+                    label="📥 Baixar Relatório",
+                    data=relatorio,
+                    file_name=f"relatorio_bulbo_{datetime.now().strftime('%Y%m%d')}.txt",
+                    mime="text/plain"
+                )
     
     # Validação NBR
     st.divider()
@@ -933,6 +1038,94 @@ def nbr_validation_page():
     # Usar a UI do módulo de validação
     nbr_validation_ui()
 
+def soil_database_page():
+    """Página do banco de dados de solos"""
+    st.title("📊 Banco de Dados de Solos")
+    
+    # Dados de solos típicos
+    soil_data = {
+        "Argila Mole": {"c": 5.0, "phi": 0.0, "gamma": 16.0, "descricao": "Baixa resistência, alta compressibilidade"},
+        "Argila Rija": {"c": 50.0, "phi": 0.0, "gamma": 19.0, "descricao": "Resistência média, compressibilidade moderada"},
+        "Silte": {"c": 0.0, "phi": 28.0, "gamma": 18.0, "descricao": "Granular fino, comportamento intermediário"},
+        "Areia Fina": {"c": 0.0, "phi": 30.0, "gamma": 17.0, "descricao": "Granular, drenante, baixa coesão"},
+        "Areia Média": {"c": 0.0, "phi": 32.0, "gamma": 18.0, "descricao": "Resistência boa, compactação média"},
+        "Areia Grossa": {"c": 0.0, "phi": 35.0, "gamma": 19.0, "descricao": "Alta resistência, boa compactação"},
+        "Pedregulho": {"c": 0.0, "phi": 40.0, "gamma": 20.0, "descricao": "Alta resistência, excelente capacidade de carga"},
+    }
+    
+    tab_view, tab_import = st.tabs(["👁️ Visualizar", "📥 Importar"])
+    
+    with tab_view:
+        st.markdown("### Solos Típicos para Análise")
+        
+        # Criar DataFrame
+        df = pd.DataFrame.from_dict(soil_data, orient='index')
+        df.index.name = "Tipo de Solo"
+        df.reset_index(inplace=True)
+        
+        # Exibir tabela
+        st.dataframe(
+            df,
+            column_config={
+                "Tipo de Solo": st.column_config.TextColumn("Tipo de Solo", width="medium"),
+                "c": st.column_config.NumberColumn("Coesão (kPa)", format="%.1f"),
+                "phi": st.column_config.NumberColumn("Ângulo φ (°)", format="%.1f"),
+                "gamma": st.column_config.NumberColumn("Peso γ (kN/m³)", format="%.1f"),
+                "descricao": st.column_config.TextColumn("Descrição", width="large")
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+        
+        # Seleção para carregar dados
+        st.markdown("### 🚀 Carregar para Análise")
+        selected_soil = st.selectbox("Selecione um tipo de solo:", list(soil_data.keys()))
+        
+        if st.button("Carregar Parâmetros", type="primary"):
+            soil = soil_data[selected_soil]
+            st.session_state.soil_params.update({
+                'c': soil['c'],
+                'phi': soil['phi'],
+                'gamma': soil['gamma']
+            })
+            
+            st.success(f"✅ Parâmetros de {selected_soil} carregados!")
+            st.rerun()
+    
+    with tab_import:
+        st.markdown("### Importar Dados Personalizados")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            c_custom = st.number_input("Coesão personalizada [kPa]", 0.0, 200.0, 10.0, 1.0)
+            phi_custom = st.number_input("Ângulo personalizado [°]", 0.0, 45.0, 30.0, 1.0)
+            gamma_custom = st.number_input("Peso personalizado [kN/m³]", 10.0, 25.0, 18.0, 0.1)
+        
+        with col2:
+            soil_name = st.text_input("Nome do solo personalizado", "Meu Solo")
+            description = st.text_area("Descrição", "Solo com parâmetros personalizados")
+        
+        if st.button("Salvar Solo Personalizado"):
+            soil_data[soil_name] = {
+                "c": c_custom,
+                "phi": phi_custom,
+                "gamma": gamma_custom,
+                "descricao": description
+            }
+            
+            # Atualizar parâmetros atuais
+            st.session_state.soil_params.update({
+                'c': c_custom,
+                'phi': phi_custom,
+                'gamma': gamma_custom
+            })
+            
+            st.success(f"✅ Solo '{soil_name}' salvo e parâmetros carregados!")
+            
+            # Mostrar dados atualizados
+            st.dataframe(pd.DataFrame.from_dict(soil_data, orient='index'))
+
 def documentation_page():
     """Página de documentação do projeto"""
     st.title("📚 Documentação do Projeto")
@@ -954,7 +1147,8 @@ def documentation_page():
         │   ├── foundation_calculations.py # Cálculos de fundações
         │   ├── soil_calculations.py       # Propriedades do solo
         │   ├── export_system.py           # Sistema de exportação
-        │   └── nbr_validation.py          # Validação normativa
+        │   ├── nbr_validation.py          # Validação normativa
+        │   └── bulbo_tensoes.py           # Bulbo de tensões (Boussinesq)
         ├── tests/                         # Testes unitários
         ├── examples/                      # Exemplos de uso
         └── docs/                          # Documentação
@@ -984,6 +1178,11 @@ def documentation_page():
         Q_ponta = A_ponta·q_p
         ```
         
+        #### 2.4 Bulbo de Tensões - Boussinesq
+        ```math
+        σ_z = \\frac{3Qz^3}{2πR^5} \\quad \\text{(carga pontual)}
+        ```
+        
         ### 3. Validação Normativa
         
         #### 3.1 NBR 6122:2019 - Fundações
@@ -1003,6 +1202,7 @@ def documentation_page():
         3. **Das, B.M.** - Principles of Geotechnical Engineering
         4. **Velloso, D.A.** - Fundações: critérios de projeto
         5. **Cintra, J.C.A.** - Fundações em estacas
+        6. **Boussinesq, J.** - Application des potentiels à l'étude de l'équilibre et du mouvement des solides élastiques
         """)
     
     with tab_code:
@@ -1034,6 +1234,12 @@ def documentation_page():
         • bearing_capacity_terzaghi()
         • pile_ultimate_capacity()
         • elastic_settlement()
+        
+        # src/bulbo_tensoes.py
+        class BulboTensoes:
+            • boussinesq_point_load()
+            • gerar_bulbo_boussinesq()
+            • plot_comparativo_bulbos()
         ```
         
         ### 2. Padrões de Codificação
@@ -1226,13 +1432,16 @@ def main():
     elif app_mode == "Validação NBR":
         nbr_validation_page()
     
+    elif app_mode == "Banco de Solos":
+        soil_database_page()
+    
     elif app_mode == "Documentação":
         documentation_page()
     
     # Footer
     st.divider()
     st.caption(f"""
-    🏗️ Simulador Solo-Fundações v1.0.0 | 
+    🏗️ Simulador Solo-Fundações v2.0.0 | 
     Desenvolvido para TCC em Engenharia Civil | 
     {datetime.now().strftime('%d/%m/%Y %H:%M')}
     """)

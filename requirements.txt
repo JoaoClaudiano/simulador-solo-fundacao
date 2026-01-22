@@ -1,13 +1,30 @@
-# Dependências principais
-streamlit>=1.28.0
+# 🏗️ SIMULADOR SOLO-FUNDAÇÕES - DEPENDÊNCIAS
+# ===========================================
+
+# 🐍 CORE DO PYTHON
+python>=3.9
+
+# 📊 ANÁLISE DE DADOS
 numpy>=1.24.0
 pandas>=2.0.0
-plotly>=5.17.0
 scipy>=1.11.0
 
-# Para visualização 3D
-scikit-image>=0.21.0
+# 📈 VISUALIZAÇÃO
+plotly>=5.17.0
+matplotlib>=3.7.0            # ADICIONADO - Para gráficos 2D estáticos
+scikit-image>=0.21.0         # Para visualização 3D
 
-# Para exportação/relatórios
+# 🌐 WEB APP
+streamlit>=1.28.0
+streamlit-aggrid>=0.3.0
+streamlit-option-menu>=0.3.0
+
+# 📤 EXPORTAÇÃO
 openpyxl>=3.1.0
 reportlab>=4.0.0
+python-docx>=0.8.11
+
+# 🔧 UTILITÁRIOS
+typing-extensions>=4.5.0
+python-dateutil>=2.8.2
+pytz>=2023.3

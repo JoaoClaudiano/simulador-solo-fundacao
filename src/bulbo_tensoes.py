@@ -318,8 +318,10 @@ class BulboTensoes:
                 coloring='heatmap'
             ),
             colorbar=dict(
-                title="Δσ/q (%)",
-                titleside="right",
+                title=dict(
+                    text="Δσ/q (%)",
+                    side="right"  # <-- SINTAXE CORRETA NA VERSÃO ATUAL DO PLOTLY
+                ),
                 tickvals=list(range(0, 101, 10))
             ),
             hovertemplate=(

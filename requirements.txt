@@ -2,7 +2,7 @@
 # ===========================================
 
 # 🐍 VERSÃO DO PYTHON
-python>=3.9,<3.12
+# python>=3.9,<3.12
 
 # 📊 ANÁLISE DE DADOS E CÁLCULOS
 numpy>=1.24.0,<2.0.0

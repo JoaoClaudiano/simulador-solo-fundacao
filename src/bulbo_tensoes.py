@@ -73,8 +73,8 @@ class BulboTensoes:
         
         return sigma_z
     
-   # @staticmethod
     def boussinesq_rectangular_load(
+        self,
         q: float, B: float, L: float, x: float, y: float, z: float, 
         nu: float = 0.3, method: str = 'newmark'
     ) -> float:
@@ -130,12 +130,11 @@ class BulboTensoes:
                 sigma_z = q * result
             except:
                 # Fallback para Newmark se a integração falhar
-                sigma_z = BulboTensoes.boussinesq_rectangular_load(q, B, L, x, y, z, nu, 'newmark')
+                sigma_z = self.boussinesq_rectangular_load(q, B, L, x, y, z, nu, 'newmark')
         
         return sigma_z
     
-    #@staticmethod
-    def _calcular_fator_influencia_newmark(m: float, n: float) -> float:
+    def _calcular_fator_influencia_newmark(self, m: float, n: float) -> float:
         """Calcula fator de influência usando fórmulas de Newmark"""
         m2 = m**2
         n2 = n**2
@@ -206,9 +205,14 @@ class BulboTensoes:
                             sigma_grid[i, j, k] = 0
                     else:
                         sigma_grid[i, j, k] = self.boussinesq_rectangular_load(
-                            fundacao.carga, fundacao.largura, fundacao.comprimento,
-                            x_val, y_val, z_val,
-                            nu=solo.coeficiente_poisson, method=method
+                            q=fundacao.carga,
+                            B=fundacao.largura,
+                            L=fundacao.comprimento,
+                            x=x_val,
+                            y=y_val,
+                            z=z_val,
+                            nu=solo.coeficiente_poisson,
+                            method=method
                         )
         
         print(f"Tempo cálculo: {time.time() - start_time:.2f}s")
@@ -320,7 +324,7 @@ class BulboTensoes:
             colorbar=dict(
                 title=dict(
                     text="Δσ/q (%)",
-                    side="right"  # <-- SINTAXE CORRETA NA VERSÃO ATUAL DO PLOTLY
+                    side="right"
                 ),
                 tickvals=list(range(0, 101, 10))
             ),
@@ -397,8 +401,6 @@ class BulboTensoes:
         try:
             from skimage import measure
             
-            st.info("Gerando isosuperfícies 3D...")
-            
             # Definir níveis de tensão para visualização
             levels = [10, 20, 30, 40, 50]
             colors = ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725']
@@ -435,7 +437,7 @@ class BulboTensoes:
                     
         except ImportError:
             # Opção 2: Nuvem de pontos colorida (fallback)
-            st.warning("scikit-image não instalado. Usando visualização 3D simplificada.")
+            print("scikit-image não instalado. Usando visualização 3D simplificada.")
             
             # Amostrar pontos para performance
             sample_size = 5000

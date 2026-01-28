@@ -73,7 +73,7 @@ class BulboTensoes:
         
         return sigma_z
     
-    @staticmethod
+   # @staticmethod
     def boussinesq_rectangular_load(
         q: float, B: float, L: float, x: float, y: float, z: float, 
         nu: float = 0.3, method: str = 'newmark'
@@ -134,7 +134,7 @@ class BulboTensoes:
         
         return sigma_z
     
-    @staticmethod
+    #@staticmethod
     def _calcular_fator_influencia_newmark(m: float, n: float) -> float:
         """Calcula fator de influência usando fórmulas de Newmark"""
         m2 = m**2

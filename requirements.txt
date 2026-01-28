@@ -2,7 +2,7 @@
 # ===========================================
 
 # 🐍 VERSÃO DO PYTHON
-# python>=3.9,<3.12
+ python>=3.1
 
 # 📊 ANÁLISE DE DADOS E CÁLCULOS
 numpy>=1.24.0,<2.0.0
@@ -12,6 +12,7 @@ scipy>=1.11.0,<2.0.0
 # 📈 VISUALIZAÇÃO GRÁFICA (APENAS PLOTLY - Matplotlib REMOVIDO)
 plotly>=5.17.0,<6.0.0
 scikit-image>=0.21.0,<0.22.0  # Para visualização 3D do bulbo
+matplotlib>=3.7.0 
 
 # 🌐 WEB APP COM STREAMLIT
 streamlit>=1.28.0,<2.0.0
@@ -28,3 +29,4 @@ typing-extensions>=4.5.0,<5.0.0
 python-dateutil>=2.8.2,<3.0.0
 pytz>=2023.3,<2024.0
 packaging>=23.0,<24.0        # Para versionamento
+pytest>=7.4.0

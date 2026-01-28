@@ -1,32 +1,22 @@
-# 🏗️ SIMULADOR SOLO-FUNDAÇÕES - DEPENDÊNCIAS
-# ===========================================
+# 🏗️ DEPENDÊNCIAS PRINCIPAIS - SIMULADOR SOLO-FUNDAÇÕES
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
 
-# 🐍 VERSÃO DO PYTHON
- python>=3.1
+# 📊 VISUALIZAÇÃO (Mantenha matplotlib SE for usado no código)
+plotly>=5.17.0
+matplotlib>=3.7.0
+scikit-image>=0.21.0
 
-# 📊 ANÁLISE DE DADOS E CÁLCULOS
-numpy>=1.24.0,<2.0.0
-pandas>=2.0.0,<3.0.0
-scipy>=1.11.0,<2.0.0
+# 🌐 APLICAÇÃO WEB
+streamlit>=1.28.0
+streamlit-aggrid>=0.3.0
+streamlit-option-menu>=0.3.0
 
-# 📈 VISUALIZAÇÃO GRÁFICA (APENAS PLOTLY - Matplotlib REMOVIDO)
-plotly>=5.17.0,<6.0.0
-scikit-image>=0.21.0,<0.22.0  # Para visualização 3D do bulbo
-matplotlib>=3.7.0 
+# 📤 EXPORTAÇÃO DE DADOS
+openpyxl>=3.1.0
+reportlab>=4.0.0
 
-# 🌐 WEB APP COM STREAMLIT
-streamlit>=1.28.0,<2.0.0
-streamlit-aggrid>=0.3.0,<0.4.0
-streamlit-option-menu>=0.3.0,<0.4.0
-
-# 📤 SISTEMA DE EXPORTAÇÃO
-openpyxl>=3.1.0,<4.0.0       # Para Excel
-reportlab>=4.0.0,<5.0.0      # Para PDF
-# python-docx>=0.8.11        # REMOVIDO - não é necessário
-
-# 🔧 UTILITÁRIOS E SEGURANÇA
-typing-extensions>=4.5.0,<5.0.0
-python-dateutil>=2.8.2,<3.0.0
-pytz>=2023.3,<2024.0
-packaging>=23.0,<24.0        # Para versionamento
-pytest>=7.4.0
+# 🔧 UTILITÁRIOS
+python-dateutil>=2.8.2
+pytz>=2023.3

@@ -3,6 +3,7 @@ Sistema completo de exportação de resultados
 para CSV, Excel, PDF e relatórios técnicos
 Versão 3.0 - Corrigido: Importações completas e validação
 """
+
 import pandas as pd
 import numpy as np
 import plotly.io as pio

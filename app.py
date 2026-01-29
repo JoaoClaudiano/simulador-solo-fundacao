@@ -730,8 +730,24 @@ def shallow_foundation_page():
                     'z_20': z_20,
                     'z_05': z_05
                 })
+                 # DEBUG: Verificar valores do bulbo
+                st.write("🔍 DEBUG - Valores do slice central:")
+                st.write(f"Shape do sigma_b: {sigma_b.shape}")
+                st.write(f"Valor máximo: {sigma_b.max():.1f} kPa")
+                st.write(f"Valor mínimo: {sigma_b.min():.1f} kPa")
+                st.write(f"Média: {sigma_b.mean():.1f} kPa")
                 
-            except Exception as e:
+                # Verificar se há valores diferentes de zero
+                if np.allclose(sigma_b, 0) or sigma_b.max() < 0.001:
+                    st.error("⚠️ AVISO: Valores de tensão próximos de zero!")
+                    st.info("""
+                    Possíveis causas:
+                    1. Método de cálculo falhou silenciosamente
+                    2. Z muito pequeno (próximo da superfície)
+                    3. Erro na função boussinesq_rectangular_load
+                    """)
+                                
+        except Exception as e:
                 placeholder.error(f"❌ Erro no cálculo do bulbo: {str(e)}")
                 st.info("""
                 **Possíveis causas:**

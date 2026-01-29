@@ -645,7 +645,13 @@ def shallow_foundation_page():
                     y=Z_slice[:, 0],
                     colorscale='Plasma',
                     contours=dict(start=0, end=100, size=10),
-                    colorbar=dict(title="Δσ/q [%]", titleside="right"),
+                    colorbar=dict(
+                        title=dict(
+                            text="Δσ/q [%]",
+                            side="right"
+                        )
+                    ),
+                    
                     hovertemplate=(
                         "<b>Distância X</b>: %{x:.2f} m<br>"
                         "<b>Profundidade Z</b>: %{y:.2f} m<br>"

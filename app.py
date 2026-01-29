@@ -641,38 +641,19 @@ def shallow_foundation_page():
                     Z_slice = coords[:, slice_index, :, 2]
                     
                     # 4. Criar gráfico de contorno
-                    fig = go.Figure(data=go.Contour(
-                        z=center_slice,
-                        x=X_slice[0, :],
-                        y=Z_slice[:, 0],
-                        colorscale='Plasma',
-                        contours=dict(start=0, end=100, size=10),
-                        colorbar=dict(
-                            title=dict(
-                                text="Δσ/q [%]",
-                                side="right"
-                            )
-                        ),
-                        hovertemplate=(
-                            "<b>Distância X</b>: %{x:.2f} m<br>"
-                            "<b>Profundidade Z</b>: %{y:.2f} m<br>"
-                            "<b>Tensão Δσ/q</b>: %{z:.1f} %<br>"
-                            "<b>Tensão absoluta</b>: %{customdata:.1f} kPa"
-                            "<extra></extra>"
-                        ),
-                        customdata=center_slice * q_applied / 100,
-                        line_smoothing=0.85
-                    ))
+                    # 4. Criar gráfico de contorno COM ISÓBARAS CORRIGIDAS
+                    # Usar a função corrigida do bulbo_tensoes.py
+                    fig = bulbo.plot_bulbo_2d_com_isobaras(resultado)
                     
                     # 5. Adicionar contorno da sapata
-                    fig.add_shape(
-                        type="rect",
-                        x0=-B/2, y0=0,
-                        x1=B/2, y1=-0.05 * depth_ratio * B,
-                        line=dict(color="red", width=3),
-                        fillcolor="rgba(255, 0, 0, 0.15)",
-                        name="Sapata"
-                    )
+                        #fig.add_shape(
+                        #type="rect",
+                        #x0=-B/2, y0=0,
+                        #x1=B/2, y1=-0.05 * depth_ratio * B,
+                        #line=dict(color="red", width=3),
+                        #fillcolor="rgba(255, 0, 0, 0.15)",
+                        #name="Sapata"
+                    #)
                     
                     # 6. Configurar layout
                     fig.update_layout(

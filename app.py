@@ -34,7 +34,7 @@ try:
         nbr_validation_ui
     )
     from src.bulbo_tensoes import BulboTensoes
-    from src.terzaghi import FoundationDesigner, TerzaghiCapacity
+    from src.terzaghi import FoundationDesign as FoundationDesigner, TerzaghiCapacity
     
     MODULES_LOADED = True
 except ImportError as e:

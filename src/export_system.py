@@ -4,6 +4,7 @@ para CSV, Excel, PDF e relatórios técnicos
 Versão 3.0 - Corrigido: Importações completas e validação
 """
 
+import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import plotly.io as pio

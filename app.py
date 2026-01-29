@@ -850,10 +850,9 @@ def shallow_foundation_page():
                     
                     # Calcular
                     with st.spinner("Calculando capacidade de carga..."):
-                        design = designer.complete_foundation_design(
-                            soil_params, foundation_params, loading_params
-                        )
-                    
+                        design = designer.complete_design(soil_params, foundation_params, loading_params)
+                        
+                                        
                     if design['success']:
                         # Armazenar resultados
                         st.session_state.terzaghi_results = design

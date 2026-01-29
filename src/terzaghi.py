@@ -5,6 +5,7 @@ Implementação completa das teorias de Karl Terzaghi
 import numpy as np
 from typing import Dict, Any, Tuple
 from dataclasses import dataclass
+from datetime import datetime
 
 @dataclass
 class TerzaghiCapacity:
@@ -190,75 +191,154 @@ class FoundationDesign:
         Returns:
             Dicionário com todos os resultados do projeto
         """
-        # 1. Capacidade de carga
-        bearing = self.terzaghi.bearing_capacity(
-            c=soil_params['c'],
-            phi=soil_params['phi'],
-            gamma=soil_params['gamma'],
-            B=foundation_params['B'],
-            L=foundation_params['L'],
-            D_f=foundation_params['D_f'],
-            shape=foundation_params.get('shape', 'rectangular')
-        )
-        
-        # 2. Verificação de segurança
-        q_applied = load_params['q_applied']
-        fs_calculated = bearing['q_ult'] / q_applied if q_applied > 0 else float('inf')
-        
-        safety_status = 'SAFE' if fs_calculated >= 3.0 else 'FAIL'
-        
-        # 3. Recalques (simplificado)
-        settlement = self.terzaghi.settlement_elastic(
-            q=q_applied,
-            B=foundation_params['B'],
-            L=foundation_params['L'],
-            E=soil_params.get('E', 30000),
-            mu=soil_params.get('mu', 0.3)
-        )
-        
-        # 4. Verificação de recalques
-        settlement_limit = 0.025  # 25 mm típico
-        settlement_status = 'OK' if settlement <= settlement_limit else 'EXCESSIVE'
-        
-        return {
-            'bearing_capacity': bearing,
-            'safety_check': {
-                'q_applied': q_applied,
-                'q_ult': bearing['q_ult'],
-                'fs_calculated': fs_calculated,
-                'fs_required': 3.0,
-                'status': safety_status
-            },
-            'settlement': {
-                'immediate': settlement,
-                'limit': settlement_limit,
-                'status': settlement_status
-            },
-            'recommendations': self._generate_recommendations(
-                fs_calculated, settlement, settlement_limit
+        try:
+            # 1. Capacidade de carga
+            bearing = self.terzaghi.bearing_capacity(
+                c=soil_params['c'],
+                phi=soil_params['phi'],
+                gamma=soil_params['gamma'],
+                B=foundation_params['B'],
+                L=foundation_params['L'],
+                D_f=foundation_params['D_f'],
+                shape=foundation_params.get('shape', 'rectangular')
             )
-        }
+            
+            # 2. Verificação de segurança
+            q_applied = load_params['q_applied']
+            fs_calculated = bearing['q_ult'] / q_applied if q_applied > 0 else float('inf')
+            
+            safety_status = 'SAFE' if fs_calculated >= 3.0 else 'FAIL'
+            
+            # 3. Recalques (simplificado) - agora em mm
+            settlement_m = self.terzaghi.settlement_elastic(
+                q=q_applied,
+                B=foundation_params['B'],
+                L=foundation_params['L'],
+                E=soil_params.get('E', 30000),
+                mu=soil_params.get('mu', 0.3)
+            )
+            settlement_mm = settlement_m * 1000  # Converter para mm
+            
+            # 4. Verificação de recalques (em mm)
+            settlement_limit = 25.0  # 25 mm
+            settlement_status = 'OK' if settlement_mm <= settlement_limit else 'EXCESSIVE'
+            
+            # 5. Gerar recomendações (ajustado para mm)
+            recommendations = self._generate_recommendations(fs_calculated, settlement_mm)
+            
+            # 6. Criar resumo do projeto
+            design_summary = self._create_design_summary(
+                soil_params, foundation_params, load_params,
+                bearing, fs_calculated, settlement_mm, safety_status,
+                settlement_status, recommendations
+            )
+            
+            return {
+                'success': True,
+                'bearing_capacity': bearing,
+                'safety_check': {
+                    'q_applied': q_applied,
+                    'q_ult': bearing['q_ult'],
+                    'fs_calculated': fs_calculated,
+                    'fs_required': 3.0,
+                    'status': safety_status,
+                    'color': 'green' if safety_status == 'SAFE' else 'red'
+                },
+                'settlement': {
+                    'settlement_mm': settlement_mm,
+                    'limit_mm': settlement_limit,
+                    'status': settlement_status
+                },
+                'recommendations': recommendations,
+                'design_summary': design_summary
+            }
+            
+        except Exception as e:
+            # Retornar erro formatado
+            return {
+                'success': False,
+                'error': str(e)
+            }
     
-    def _generate_recommendations(self, fs: float, settlement: float, 
-                                 limit: float) -> list:
-        """Gera recomendações de projeto"""
+    def _generate_recommendations(self, fs: float, settlement_mm: float) -> list:
+        """Gera recomendações de projeto (ajustado para mm)"""
         recommendations = []
         
         if fs < 2.0:
             recommendations.append(
-                "⚠️ AUMENTAR DIMENSÕES: Fator de segurança muito baixo (<2.0)"
+                "❌ AUMENTAR DIMENSÕES: Fator de segurança muito baixo (FS < 2.0)"
             )
         elif fs < 3.0:
             recommendations.append(
-                "📏 CONSIDERAR AUMENTO: FS abaixo do recomendado (3.0)"
+                "⚠️ CONSIDERAR AUMENTO: FS abaixo do recomendado (FS < 3.0)"
             )
-        
-        if settlement > limit:
+        else:
             recommendations.append(
-                f"🏗️ MELHORAR SOLO: Recalque {settlement*1000:.0f}mm > limite {limit*1000:.0f}mm"
+                "✅ FS ADEQUADO: Fator de segurança ≥ 3.0"
             )
         
-        if not recommendations:
-            recommendations.append("✅ PROJETO ADEQUADO: Atende critérios de segurança e serviço")
+        if settlement_mm > 25.0:
+            recommendations.append(
+                f"❌ MELHORAR SOLO: Recalque {settlement_mm:.1f} mm > limite 25 mm"
+            )
+        elif settlement_mm > 15.0:
+            recommendations.append(
+                f"⚠️ RECALQUE ELEVADO: {settlement_mm:.1f} mm (limite: 25 mm)"
+            )
+        else:
+            recommendations.append(
+                f"✅ RECALQUE ACEITÁVEL: {settlement_mm:.1f} mm ≤ 15 mm (recomendado)"
+            )
+        
+        if fs >= 3.0 and settlement_mm <= 15.0:
+            recommendations.append("🎯 PROJETO OTIMIZADO: Atende todos os critérios com folga")
         
         return recommendations
+    
+    def _create_design_summary(self, soil_params, foundation_params, load_params,
+                              bearing, fs, settlement_mm, safety_status, 
+                              settlement_status, recommendations) -> str:
+        """Cria resumo textual do projeto"""
+        summary = f"""
+================================================
+RELATÓRIO DE PROJETO DE FUNDAÇÃO - TERZAGHI
+================================================
+
+PARÂMETROS DO SOLO:
+- Coesão (c): {soil_params['c']} kPa
+- Ângulo de atrito (φ): {soil_params['phi']}°
+- Peso específico (γ): {soil_params['gamma']} kN/m³
+- Módulo de elasticidade (E): {soil_params.get('E', 30000)} kPa
+
+PARÂMETROS DA FUNDAÇÃO:
+- Largura (B): {foundation_params['B']} m
+- Comprimento (L): {foundation_params['L']} m
+- Profundidade (D_f): {foundation_params['D_f']} m
+- Forma: {foundation_params.get('shape', 'retangular')}
+
+CARREGAMENTO:
+- Pressão aplicada (q): {load_params['q_applied']} kPa
+
+RESULTADOS:
+1. CAPACIDADE DE CARGA:
+   - q_ult = {bearing['q_ult']:.1f} kPa
+   - q_adm (FS=3) = {bearing['q_adm']:.1f} kPa
+   - Fatores: Nc={bearing['Nc']:.2f}, Nq={bearing['Nq']:.2f}, Nγ={bearing['Ngamma']:.2f}
+
+2. VERIFICAÇÃO DE SEGURANÇA:
+   - FS calculado = {fs:.2f}
+   - Status: {safety_status}
+
+3. RECALQUES:
+   - Recalque imediato = {settlement_mm:.1f} mm
+   - Status: {settlement_status}
+
+4. RECOMENDAÇÕES:
+"""
+        
+        for i, rec in enumerate(recommendations, 1):
+            summary += f"   {i}. {rec}\n"
+        
+        summary += f"\nData: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        
+        return summary

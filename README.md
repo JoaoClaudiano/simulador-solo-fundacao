@@ -89,24 +89,49 @@ docker run -p 8501:8501 simulasolo
 
 ```
 simulador-solo-fundacao/
-├── app.py                      # Aplicação principal Streamlit
-├── requirements.txt            # Dependências do Python
-├── setup.sh                    # Script de configuração para deployment
+├── app.py                         # Aplicação principal Streamlit
+├── requirements.txt               # Dependências do Python
+├── packages.txt                   # Pacotes do sistema (apt)
+├── check_installation.py          # Script para verificar instalação
+├── install_dependencies.sh        # Script de instalação de dependências
+├── LICENSE                        # Licença MIT do projeto
 │
-├── src/                        # Núcleo do simulador
-│   └── bulbo_tensoes.py        # Lógica principal de cálculo (Love)
+├── .devcontainer/                 # Configuração do Dev Container
+│   └── devcontainer.json          # Configuração do ambiente de desenvolvimento
 │
-├── data/                       # Dados e configurações
-│   └── soil_database.json      # Banco de dados de tipos de solo
+├── src/                           # Núcleo do simulador
+│   ├── __init__.py                # Inicialização do pacote
+│   ├── bulbo_tensoes.py           # Lógica principal de cálculo (Love)
+│   ├── estacas.py                 # Cálculos para fundações profundas (estacas)
+│   ├── export_system.py           # Sistema de exportação de dados
+│   ├── foundation_calculations.py # Cálculos gerais de fundações
+│   ├── integracao_tcc.py          # Integração com trabalhos de conclusão de curso
+│   ├── models.py                  # Modelos de dados geotécnicos
+│   ├── mohr_coulomb.py            # Implementação do critério de Mohr-Coulomb
+│   ├── nbr_validation.py          # Validação segundo normas NBR
+│   ├── relatorio_abnt.py          # Geração de relatórios no padrão ABNT
+│   ├── soil_calculations.py       # Cálculos relacionados ao solo
+│   ├── terzaghi.py                # Método de Terzaghi para capacidade de carga
+│   └── validacao_casos_teste.py   # Testes de validação de casos
 │
-├── examples/                   # Exemplos de uso
-│   └── foundation_example.py   # Uso do núcleo sem a interface web
+├── data/                          # Dados e configurações
+│   └── soil_database.json         # Banco de dados de tipos de solo
 │
-├── tests/                      # Testes automatizados
-│   └── test_foundation.py      # Testes unitários
+├── examples/                      # Exemplos de uso
+│   └── foundation_example.py      # Uso do núcleo sem a interface web
 │
-└── utils/                      # Utilitários
-    └── export_utils.py         # Funções para exportar dados (CSV, Excel)
+├── tests/                         # Testes automatizados
+│   ├── test_foundation.py         # Testes unitários de fundações
+│   ├── test_integration.py        # Testes de integração
+│   └── test_models.py             # Testes de modelos de dados
+│
+├── utils/                         # Utilitários
+│   └── export_utils.py            # Funções para exportar dados (CSV, Excel)
+│
+└── streamlit/                     # Configurações do Streamlit
+    ├── config.toml                # Configuração do Streamlit
+    ├── setup.sh                   # Script de setup para deployment
+    └── theme_custom.css           # Tema customizado da aplicação
 ```
 
 ---

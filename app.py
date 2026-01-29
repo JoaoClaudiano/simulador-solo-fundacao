@@ -1037,76 +1037,461 @@ def shallow_foundation_page():
                 """)
 
 def deep_foundation_page():
-    """Página de análise de estacas"""
+    """Página de análise de estacas (Fundações Profundas) - VERSÃO COMPLETA"""
     st.title("📏 Análise de Estacas (Fundações Profundas)")
     
     if not MODULES_LOADED:
         st.error("Módulo de fundações não carregado!")
         return
     
-    st.info("""
-    **Funcionalidade em desenvolvimento.**
-    Para análise completa de fundações, use a página de **Sapatas** que já está
-    com o bulbo de tensões Boussinesq e capacidade de carga Terzaghi implementados.
-    """)
-    
-    col_geom, col_soil = st.columns(2)
-    
-    with col_geom:
-        st.markdown("### 📐 Geometria da Estaca")
+    # Tentar importar o módulo de estacas
+    try:
+        from src.estacas import EstacaDesigner, CamadaSoloEstaca, EstacaGeometria
+        estacas_carregado = True
+    except ImportError:
+        st.error("Módulo de estacas não encontrado! Verifique se o arquivo src/estacas.py existe.")
+        estacas_carregado = False
         
-        pile_diameter = st.number_input(
-            "Diâmetro [m]",
-            min_value=0.3,
-            max_value=2.0,
-            value=0.5,
-            step=0.1,
-            key="pile_diameter"
-        )
+        # Mostrar placeholder antigo
+        st.info("""
+        **Funcionalidade em desenvolvimento.**
+        Para análise completa de fundações, use a página de **Sapatas** que já está
+        com o bulbo de tensões Boussinesq e capacidade de carga Terzaghi implementados.
+        """)
         
-        pile_length = st.number_input(
-            "Comprimento [m]",
-            min_value=5.0,
-            max_value=50.0,
-            value=15.0,
-            step=1.0,
-            key="pile_length"
-        )
-    
-    with col_soil:
-        st.markdown("### 🌱 Solo Atual")
-        if st.session_state.current_solo:
-            solo = st.session_state.current_solo
-            st.success(f"✅ Solo: {solo.nome}")
-            
-            col_s1, col_s2, col_s3 = st.columns(3)
-            with col_s1:
-                st.metric("γ", f"{solo.peso_especifico} kN/m³")
-            with col_s2:
-                if solo.coesao:
-                    st.metric("c", f"{solo.coesao} kPa")
-                else:
-                    st.metric("c", "0 kPa")
-            with col_s3:
-                if solo.angulo_atrito:
-                    st.metric("φ", f"{solo.angulo_atrito}°")
-                else:
-                    st.metric("φ", "N/A")
-        else:
-            st.warning("Configure um solo na página de Sapatas primeiro.")
-    
-    if st.button("🧪 Ir para Análise de Sapatas", type="primary", width="stretch"):
-        st.session_state.app_mode = "Sapatas"
-        st.rerun()
-
-def export_page():
-    """Página de exportação de resultados"""
-    st.title("📤 Exportação de Resultados")
-    
-    if not MODULES_LOADED:
-        st.error("Sistema de exportação não carregado!")
+        col_geom, col_soil = st.columns(2)
+        
+        with col_geom:
+            st.markdown("### 📐 Geometria da Estaca")
+            pile_diameter = st.number_input("Diâmetro [m]", 0.3, 2.0, 0.5, 0.1, key="pile_diameter")
+            pile_length = st.number_input("Comprimento [m]", 5.0, 50.0, 15.0, 1.0, key="pile_length")
+        
+        with col_soil:
+            st.markdown("### 🌱 Solo Atual")
+            if st.session_state.current_solo:
+                solo = st.session_state.current_solo
+                st.success(f"✅ Solo: {solo.nome}")
+                
+                col_s1, col_s2, col_s3 = st.columns(3)
+                with col_s1:
+                    st.metric("γ", f"{solo.peso_especifico} kN/m³")
+                with col_s2:
+                    if solo.coesao:
+                        st.metric("c", f"{solo.coesao} kPa")
+                    else:
+                        st.metric("c", "0 kPa")
+                with col_s3:
+                    if solo.angulo_atrito:
+                        st.metric("φ", f"{solo.angulo_atrito}°")
+                    else:
+                        st.metric("φ", "N/A")
+            else:
+                st.warning("Configure um solo na página de Sapatas primeiro.")
+        
+        if st.button("🧪 Ir para Análise de Sapatas", type="primary", width="stretch"):
+            st.session_state.app_mode = "Sapatas"
+            st.rerun()
+        
         return
     
+    # Se o módulo foi carregado, mostrar interface completa
+    st.markdown("### 🔧 Configuração da Estaca e Solo")
+    
+    # Abas para configuração
+    tab_config, tab_resultados = st.tabs(["⚙️ Configuração", "📊 Resultados"])
+    
+    with tab_config:
+        col_estaca, col_camadas = st.columns([1, 1])
+        
+        with col_estaca:
+            st.markdown("#### 📐 Geometria da Estaca")
+            
+            tipo_estaca = st.selectbox(
+                "Tipo de estaca",
+                ["hélice contínua", "pré-moldada", "raiz", "escavada", "metálica"],
+                help="Selecione o tipo de estaca"
+            )
+            
+            diametro = st.number_input(
+                "Diâmetro (D) [m]",
+                min_value=0.3,
+                max_value=2.0,
+                value=0.5,
+                step=0.1,
+                help="Diâmetro ou lado da estaca"
+            )
+            
+            comprimento = st.number_input(
+                "Comprimento (L) [m]",
+                min_value=5.0,
+                max_value=50.0,
+                value=15.0,
+                step=1.0,
+                help="Comprimento da estaca"
+            )
+            
+            forma_estaca = st.selectbox(
+                "Forma da seção",
+                ["circular", "quadrada"],
+                help="Forma da seção transversal"
+            )
+            
+            material = st.selectbox(
+                "Material",
+                ["concreto", "aço", "madeira"],
+                help="Material da estaca"
+            )
+            
+            # Criar objeto estaca
+            estaca = EstacaGeometria(
+                tipo=tipo_estaca,
+                diametro=diametro,
+                comprimento=comprimento,
+                forma=forma_estaca,
+                material=material
+            )
+        
+        with col_camadas:
+            st.markdown("#### 🌱 Camadas de Solo")
+            
+            # Configurar camadas de solo
+            num_camadas = st.slider("Número de camadas", 1, 5, 2)
+            
+            camadas = []
+            profundidade_atual = 0.0
+            
+            for i in range(num_camadas):
+                with st.expander(f"Camada {i+1}", expanded=(i < 2)):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        espessura = st.number_input(
+                            f"Espessura camada {i+1} [m]",
+                            min_value=1.0,
+                            max_value=20.0,
+                            value=5.0,
+                            step=0.5,
+                            key=f"espessura_{i}"
+                        )
+                        
+                        tipo_solo = st.selectbox(
+                            f"Tipo de solo {i+1}",
+                            ["argila", "areia", "silte"],
+                            key=f"tipo_{i}"
+                        )
+                        
+                        Nspt = st.slider(
+                            f"SPT (N) camada {i+1}",
+                            min_value=2,
+                            max_value=50,
+                            value=10 + i*5,
+                            step=1,
+                            key=f"Nspt_{i}"
+                        )
+                    
+                    with col2:
+                        gamma = st.number_input(
+                            f"Peso específico γ [kN/m³] {i+1}",
+                            min_value=15.0,
+                            max_value=22.0,
+                            value=18.0,
+                            step=0.5,
+                            key=f"gamma_{i}"
+                        )
+                        
+                        if tipo_solo == "argila":
+                            c = st.number_input(
+                                f"Coesão (c) [kPa] {i+1}",
+                                min_value=5.0,
+                                max_value=100.0,
+                                value=20.0 + i*10,
+                                step=5.0,
+                                key=f"c_{i}"
+                            )
+                            phi = 0.0
+                        else:
+                            c = 0.0
+                            phi = st.slider(
+                                f"Ângulo atrito (φ) [°] {i+1}",
+                                min_value=25.0,
+                                max_value=40.0,
+                                value=30.0,
+                                step=1.0,
+                                key=f"phi_{i}"
+                            )
+                        
+                        # Peso específico submerso (aproximado)
+                        gamma_sub = gamma - 9.81
+                        
+                    # Criar camada
+                    camada = CamadaSoloEstaca(
+                        espessura=espessura,
+                        profundidade_inicio=profundidade_atual,
+                        profundidade_fim=profundidade_atual + espessura,
+                        peso_especifico=gamma,
+                        peso_especifico_submerso=gamma_sub,
+                        angulo_atrito=phi,
+                        coesao=c,
+                        Nspt=Nspt,
+                        tipo=tipo_solo,
+                        modulo_elasticidade=15000 + i*5000  # Aproximação
+                    )
+                    
+                    camadas.append(camada)
+                    profundidade_atual += espessura
+        
+        # Parâmetros adicionais
+        st.markdown("#### ⚙️ Parâmetros de Análise")
+        
+        col_metodo, col_agua = st.columns(2)
+        
+        with col_metodo:
+            metodo = st.selectbox(
+                "Método de cálculo",
+                ["aoki_velloso", "decourt_quaresma", "meyerhof", "alpha_beta"],
+                format_func=lambda x: x.replace("_", " ").title(),
+                help="Selecione o método para cálculo da capacidade"
+            )
+        
+        with col_agua:
+            nivel_agua = st.number_input(
+                "Nível d'água [m]",
+                min_value=0.0,
+                max_value=50.0,
+                value=5.0,
+                step=1.0,
+                help="Profundidade do lençol freático"
+            )
+        
+        # Botão para calcular
+        calcular_estaca = st.button(
+            "🔬 Calcular Capacidade da Estaca",
+            type="primary",
+            width="stretch"
+        )
+    
+    with tab_resultados:
+        placeholder_resultados = st.empty()
+        
+        if calcular_estaca:
+            try:
+                # Criar designer e calcular
+                designer = EstacaDesigner()
+                
+                with st.spinner("Calculando capacidade da estaca..."):
+                    resultados = designer.capacidade_estaca_metodo_estatico(
+                        camadas=camadas,
+                        estaca=estaca,
+                        metodo=metodo,
+                        nivel_agua=nivel_agua
+                    )
+                
+                # Mostrar resultados principais
+                st.markdown("### 📊 Resultados da Análise")
+                
+                col_cap1, col_cap2, col_cap3 = st.columns(3)
+                
+                with col_cap1:
+                    st.metric("Atrito Lateral", f"{resultados['atrito_lateral']:.0f} kN")
+                    st.metric("% do Total", f"{resultados['atrito_lateral']/resultados['capacidade_total']*100:.1f}%")
+                
+                with col_cap2:
+                    st.metric("Resistência Ponta", f"{resultados['resistencia_ponta']:.0f} kN")
+                    st.metric("% do Total", f"{resultados['resistencia_ponta']/resultados['capacidade_total']*100:.1f}%")
+                
+                with col_cap3:
+                    st.metric("Capacidade Última", f"{resultados['capacidade_total']:.0f} kN")
+                    st.metric("Capacidade Adm (FS=2)", f"{resultados['capacidade_admissivel']:.0f} kN")
+                
+                # Gráfico de distribuição
+                st.markdown("### 📈 Distribuição da Capacidade")
+                
+                fig = go.Figure()
+                
+                # Adicionar barras para atrito lateral e ponta
+                fig.add_trace(go.Bar(
+                    x=['Atrito Lateral', 'Resistência de Ponta'],
+                    y=[resultados['atrito_lateral'], resultados['resistencia_ponta']],
+                    name='Componentes',
+                    marker_color=['#FF6B6B', '#4ECDC4'],
+                    text=[f"{resultados['atrito_lateral']:.0f} kN", 
+                          f"{resultados['resistencia_ponta']:.0f} kN"],
+                    textposition='auto'
+                ))
+                
+                fig.update_layout(
+                    title="Distribuição da Capacidade de Carga",
+                    xaxis_title="Componente",
+                    yaxis_title="Capacidade (kN)",
+                    height=400
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Perfil de tensões laterais
+                if 'tensoes_laterais' in resultados:
+                    st.markdown("### 📊 Perfil de Tensões Laterais")
+                    
+                    profundidades = [t['profundidade'] for t in resultados['tensoes_laterais']]
+                    tensoes = [t['tensao'] for t in resultados['tensoes_laterais']]
+                    
+                    fig_tensoes = go.Figure()
+                    
+                    fig_tensoes.add_trace(go.Scatter(
+                        x=tensoes,
+                        y=profundidades,
+                        mode='lines+markers',
+                        name='Tensão Lateral',
+                        line=dict(color='blue', width=2),
+                        hovertemplate="Profundidade: %{y:.1f} m<br>Tensão: %{x:.0f} kPa"
+                    ))
+                    
+                    fig_tensoes.update_layout(
+                        title="Perfil de Tensões Laterais ao Longo do Fuste",
+                        xaxis_title="Tensão Lateral (kPa)",
+                        yaxis_title="Profundidade (m)",
+                        yaxis=dict(autorange='reversed'),
+                        height=400
+                    )
+                    
+                    st.plotly_chart(fig_tensoes, use_container_width=True)
+                
+                # Cálculo de recalques
+                st.markdown("### 📏 Cálculo de Recalques")
+                
+                modulo_solo_medio = np.mean([c.modulo_elasticidade for c in camadas])
+                tipo_solo_predominante = max(set([c.tipo for c in camadas]), 
+                                           key=[c.tipo for c in camadas].count)
+                
+                recalques = designer.calcular_recalque_estaca(
+                    carga=resultados['capacidade_admissivel'],
+                    estaca=estaca,
+                    modulo_solo=modulo_solo_medio,
+                    tipo_solo=tipo_solo_predominante
+                )
+                
+                col_rec1, col_rec2, col_rec3 = st.columns(3)
+                
+                with col_rec1:
+                    st.metric("Recalque Elástico", f"{recalques['recalque_elastico_mm']:.1f} mm")
+                with col_rec2:
+                    st.metric("Recalque Solo", f"{recalques['recalque_solo_mm']:.1f} mm")
+                with col_rec3:
+                    rec_total = recalques['recalque_total_mm']
+                    st.metric("Recalque Total", f"{rec_total:.1f} mm")
+                    
+                    if rec_total > 25:
+                        st.error("> 25 mm (limite para estruturas convencionais)")
+                    elif rec_total > 15:
+                        st.warning("> 15 mm (atenção)")
+                    else:
+                        st.success("< 15 mm (aceitável)")
+                
+                # Análise de grupo de estacas
+                st.markdown("### 🏢 Análise de Grupo de Estacas")
+                
+                col_grupo1, col_grupo2, col_grupo3 = st.columns(3)
+                
+                with col_grupo1:
+                    num_estacas = st.number_input(
+                        "Número de estacas no grupo",
+                        min_value=2,
+                        max_value=100,
+                        value=4,
+                        step=1,
+                        key="num_estacas_grupo"
+                    )
+                
+                with col_grupo2:
+                    espacamento = st.number_input(
+                        "Espaçamento entre estacas [m]",
+                        min_value=2.0*diametro,
+                        max_value=5.0*diametro,
+                        value=3.0*diametro,
+                        step=0.5,
+                        key="espacamento_grupo"
+                    )
+                
+                with col_grupo3:
+                    if st.button("Calcular Eficiência do Grupo", key="btn_grupo"):
+                        eficiencia = designer.eficiencia_grupo_estacas(
+                            num_estacas=num_estacas,
+                            espacamento=espacamento,
+                            diametro=diametro,
+                            tipo_solo=tipo_solo_predominante
+                        )
+                        
+                        st.metric("Eficiência do Grupo", f"{eficiencia['eficiencia']:.2f}")
+                        st.metric("Capacidade do Grupo", 
+                                 f"{eficiencia['capacidade_grupo'] * resultados['capacidade_admissivel']:.0f} kN")
+                
+                # Relatório e exportação
+                st.markdown("### 📄 Relatório Técnico")
+                
+                with st.expander("Ver Relatório Completo"):
+                    relatorio = designer.gerar_relatorio_estaca(resultados)
+                    st.text_area("Relatório da Estaca", relatorio, height=300)
+                    
+                    col_exp1, col_exp2 = st.columns(2)
+                    
+                    with col_exp1:
+                        st.download_button(
+                            label="📥 Baixar Relatório (TXT)",
+                            data=relatorio,
+                            file_name=f"estaca_{tipo_estaca}_D{diametro}_L{comprimento}.txt",
+                            mime="text/plain",
+                            use_container_width=True
+                        )
+                    
+                    with col_exp2:
+                        # Opção para exportar dados
+                        dados_estaca = pd.DataFrame({
+                            'Parâmetro': ['Diâmetro', 'Comprimento', 'Tipo', 'Material',
+                                         'Capacidade Última', 'Capacidade Admissível',
+                                         'Atrito Lateral', 'Resistência Ponta'],
+                            'Valor': [diametro, comprimento, tipo_estaca, material,
+                                     resultados['capacidade_total'],
+                                     resultados['capacidade_admissivel'],
+                                     resultados['atrito_lateral'],
+                                     resultados['resistencia_ponta']],
+                            'Unidade': ['m', 'm', '-', '-', 'kN', 'kN', 'kN', 'kN']
+                        })
+                        
+                        csv = dados_estaca.to_csv(index=False)
+                        st.download_button(
+                            label="📊 Baixar Dados (CSV)",
+                            data=csv,
+                            file_name=f"dados_estaca_{datetime.now().strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                
+                # Armazenar resultados na sessão
+                st.session_state.analysis_results['estaca'] = resultados
+                
+            except Exception as e:
+                placeholder_resultados.error(f"❌ Erro no cálculo da estaca: {str(e)}")
+                if st.session_state.get('debug_mode', False):
+                    import traceback
+                    st.error(f"Traceback: {traceback.format_exc()}")
+        else:
+            placeholder_resultados.info("""
+            ### 🏗️ Análise de Estacas - Fundações Profundas
+            
+            **Configure os parâmetros e clique em 'Calcular Capacidade da Estaca'**
+            
+            Esta ferramenta calcula a capacidade de carga de estacas usando métodos estáticos:
+            
+            1. **Aoki & Velloso (1975)** - Baseado em SPT, amplamente usado no Brasil
+            2. **Décourt & Quaresma (1978)** - Método brasileiro para estacas cravadas
+            3. **Meyerhof** - Para solos granulares
+            4. **Método Alpha-Beta (α-β)** - Para solos coesivos e granulares
+            
+            **Capacidade Total = Atrito Lateral + Resistência de Ponta**
+            
+            **Fator de Segurança:** FS = 2.0 (recomendado para estacas)
+            """)
+            
     # Mostrar objetos atuais
     st.markdown("### 📊 Dados Atuais para Exportação")
     

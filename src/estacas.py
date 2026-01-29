@@ -1,10 +1,11 @@
 """
 MÓDULO DE ESTACAS - Fundações Profundas
 Implementação de métodos para cálculo de capacidade de carga de estacas
+Versão 3.0 - Corrigido: Validação completa e tratamento de erros
 """
 import numpy as np
 from typing import Dict, List, Any, Tuple, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import pandas as pd
 
@@ -23,6 +24,23 @@ class CamadaSoloEstaca:
     modulo_elasticidade: float = 30000  # kPa
     coeficiente_poisson: float = 0.3
     resistencia_nao_drenada: Optional[float] = None  # Su (kPa) para argilas
+    
+    def __post_init__(self):
+        """Validação dos dados da camada"""
+        if self.espessura <= 0:
+            raise ValueError("Espessura da camada deve ser positiva")
+        if self.profundidade_inicio < 0:
+            raise ValueError("Profundidade inicial não pode ser negativa")
+        if self.profundidade_fim <= self.profundidade_inicio:
+            raise ValueError("Profundidade final deve ser maior que a inicial")
+        if self.Nspt < 0:
+            raise ValueError("Valor SPT não pode ser negativo")
+        if self.tipo not in ['argila', 'areia', 'silte']:
+            raise ValueError("Tipo de solo deve ser 'argila', 'areia' ou 'silte'")
+        if self.peso_especifico <= 0:
+            raise ValueError("Peso específico deve ser positivo")
+        if self.coeficiente_poisson < 0 or self.coeficiente_poisson >= 0.5:
+            raise ValueError("Coeficiente de Poisson deve estar entre 0 e 0.5")
 
 @dataclass
 class EstacaGeometria:
@@ -33,12 +51,38 @@ class EstacaGeometria:
     forma: str  # 'circular', 'quadrada'
     material: str  # 'concreto', 'aço', 'madeira'
     modulo_elasticidade: float = 30e6  # kPa (concreto)
+    
+    def __post_init__(self):
+        """Validação da geometria da estaca"""
+        if self.diametro <= 0:
+            raise ValueError("Diâmetro da estaca deve ser positivo")
+        if self.comprimento <= 0:
+            raise ValueError("Comprimento da estaca deve ser positivo")
+        if self.forma not in ['circular', 'quadrada']:
+            raise ValueError("Forma deve ser 'circular' ou 'quadrada'")
+        if self.material not in ['concreto', 'aço', 'madeira']:
+            raise ValueError("Material deve ser 'concreto', 'aço' ou 'madeira'")
+        if self.modulo_elasticidade <= 0:
+            raise ValueError("Módulo de elasticidade deve ser positivo")
 
 class EstacaDesigner:
-    """Classe para projeto de estacas"""
+    """Classe para projeto de estacas com validação completa"""
     
     def __init__(self):
         self.resultados = {}
+        self.historico = []
+    
+    def _validar_camadas(self, camadas: List[CamadaSoloEstaca]):
+        """Valida lista de camadas de solo"""
+        if not camadas:
+            raise ValueError("Lista de camadas não pode estar vazia")
+        
+        # Verificar continuidade das camadas
+        profundidade_anterior = 0
+        for i, camada in enumerate(camadas):
+            if abs(camada.profundidade_inicio - profundidade_anterior) > 0.01:
+                raise ValueError(f"Descontinuidade nas camadas: camada {i}")
+            profundidade_anterior = camada.profundidade_fim
     
     def capacidade_estaca_metodo_estatico(self, 
                                          camadas: List[CamadaSoloEstaca],
@@ -57,41 +101,68 @@ class EstacaDesigner:
         Returns:
             Dicionário com resultados da capacidade
         """
-        resultados = {
-            'metodo': metodo,
-            'estaca': estaca.__dict__,
-            'camadas': [c.__dict__ for c in camadas]
-        }
-        
-        # Parâmetros geométricos
-        if estaca.forma == 'circular':
-            perimetro = np.pi * estaca.diametro
-            area_ponta = np.pi * (estaca.diametro/2)**2
-        else:  # quadrada
-            perimetro = 4 * estaca.diametro
-            area_ponta = estaca.diametro**2
-        
-        # Classificar camadas por profundidade
-        camadas_ordenadas = sorted(camadas, key=lambda x: x.profundidade_inicio)
-        
-        if metodo == 'aoki_velloso':
-            capacidade = self._metodo_aoki_velloso(camadas_ordenadas, perimetro, area_ponta, estaca)
-        elif metodo == 'decourt_quaresma':
-            capacidade = self._metodo_decourt_quaresma(camadas_ordenadas, perimetro, area_ponta)
-        elif metodo == 'meyerhof':
-            capacidade = self._metodo_meyerhof(camadas_ordenadas, perimetro, area_ponta, estaca)
-        elif metodo == 'alpha_beta':
-            capacidade = self._metodo_alpha_beta(camadas_ordenadas, perimetro, area_ponta, nivel_agua)
-        else:
-            raise ValueError(f"Método {metodo} não implementado")
-        
-        # Adicionar fatores de segurança
-        capacidade['capacidade_admissivel'] = capacidade['capacidade_total'] / 2.0  # FS=2
-        
-        resultados.update(capacidade)
-        self.resultados = resultados
-        
-        return resultados
+        try:
+            # Validação de entrada
+            self._validar_camadas(camadas)
+            if nivel_agua < 0:
+                raise ValueError("Nível d'água não pode ser negativo")
+            
+            # Ordenar camadas por profundidade
+            camadas_ordenadas = sorted(camadas, key=lambda x: x.profundidade_inicio)
+            
+            # Parâmetros geométricos
+            if estaca.forma == 'circular':
+                perimetro = np.pi * estaca.diametro
+                area_ponta = np.pi * (estaca.diametro/2)**2
+            else:  # quadrada
+                perimetro = 4 * estaca.diametro
+                area_ponta = estaca.diametro**2
+            
+            # Executar método selecionado
+            if metodo == 'aoki_velloso':
+                capacidade = self._metodo_aoki_velloso(camadas_ordenadas, perimetro, area_ponta, estaca)
+            elif metodo == 'decourt_quaresma':
+                capacidade = self._metodo_decourt_quaresma(camadas_ordenadas, perimetro, area_ponta)
+            elif metodo == 'meyerhof':
+                capacidade = self._metodo_meyerhof(camadas_ordenadas, perimetro, area_ponta, estaca)
+            elif metodo == 'alpha_beta':
+                capacidade = self._metodo_alpha_beta(camadas_ordenadas, perimetro, area_ponta, nivel_agua)
+            else:
+                raise ValueError(f"Método {metodo} não implementado")
+            
+            # Adicionar fatores de segurança
+            capacidade_total = capacidade.get('capacidade_total', 0)
+            if capacidade_total > 0:
+                capacidade['capacidade_admissivel'] = capacidade_total / 2.0  # FS=2
+            else:
+                capacidade['capacidade_admissivel'] = 0
+            
+            # Preparar resultados
+            resultados = {
+                'metodo': metodo,
+                'estaca': {
+                    'tipo': estaca.tipo,
+                    'diametro': estaca.diametro,
+                    'comprimento': estaca.comprimento,
+                    'forma': estaca.forma,
+                    'material': estaca.material
+                },
+                'camadas': len(camadas),
+                'nivel_agua': nivel_agua,
+                **capacidade
+            }
+            
+            self.resultados = resultados
+            self.historico.append({
+                'timestamp': datetime.now(),
+                'metodo': metodo,
+                'resultados': resultados
+            })
+            
+            return resultados
+            
+        except Exception as e:
+            raise ValueError(f"Erro no cálculo da capacidade: {str(e)}")
     
     def _metodo_aoki_velloso(self, camadas: List[CamadaSoloEstaca], 
                             perimetro: float, area_ponta: float,
@@ -125,7 +196,7 @@ class EstacaDesigner:
                 F = F2
             
             # Tensão lateral admissível (kPa)
-            tensao_lateral = K * camada.Nspt / F
+            tensao_lateral = K * camada.Nspt / F if F > 0 else 0
             
             # Área lateral da camada
             altura_camada = min(camada.espessura, camada.profundidade_fim - camada.profundidade_inicio)
@@ -152,6 +223,7 @@ class EstacaDesigner:
             resistencia_ponta = tensao_ponta * area_ponta
         else:
             resistencia_ponta = 0.0
+            tensao_ponta = 0.0
         
         capacidade_total = atrito_lateral_total + resistencia_ponta
         
@@ -160,7 +232,7 @@ class EstacaDesigner:
             'resistencia_ponta': resistencia_ponta,
             'capacidade_total': capacidade_total,
             'tensoes_laterais': tensoes_laterais,
-            'tensao_ponta_ultima': tensao_ponta if camada_ponta else 0.0
+            'tensao_ponta_ultima': tensao_ponta
         }
     
     def _metodo_decourt_quaresma(self, camadas: List[CamadaSoloEstaca],
@@ -203,6 +275,7 @@ class EstacaDesigner:
             resistencia_ponta = tensao_ponta * area_ponta
         else:
             resistencia_ponta = 0.0
+            tensao_ponta = 0.0
         
         capacidade_total = atrito_lateral_total + resistencia_ponta
         
@@ -211,133 +284,7 @@ class EstacaDesigner:
             'resistencia_ponta': resistencia_ponta,
             'capacidade_total': capacidade_total,
             'tensoes_laterais': tensoes_laterais,
-            'tensao_ponta_ultima': tensao_ponta if camada_ponta else 0.0
-        }
-    
-    def _metodo_meyerhof(self, camadas: List[CamadaSoloEstaca],
-                        perimetro: float, area_ponta: float,
-                        estaca: EstacaGeometria) -> Dict[str, float]:
-        """
-        Método de Meyerhof para estacas em solos granulares
-        """
-        atrito_lateral_total = 0.0
-        tensoes_laterais = []
-        
-        for camada in camadas:
-            if camada.tipo in ['areia', 'silte']:
-                # Para solos granulares
-                tensao_lateral = 2 * camada.Nspt  # kPa
-                tensao_lateral = min(tensao_lateral, 100)  # Limite
-            else:
-                # Para argilas (Meyerhof não é recomendado)
-                tensao_lateral = 0.5 * camada.coesao if camada.coesao > 0 else 10
-            
-            altura_camada = min(camada.espessura, camada.profundidade_fim - camada.profundidade_inicio)
-            area_lateral = perimetro * altura_camada
-            
-            atrito_camada = tensao_lateral * area_lateral
-            atrito_lateral_total += atrito_camada
-            
-            tensoes_laterais.append({
-                'profundidade': camada.profundidade_inicio,
-                'tensao': tensao_lateral,
-                'atrito': atrito_camada
-            })
-        
-        # Resistência de ponta (Meyerhof para solos granulares)
-        camada_ponta = camadas[-1] if camadas else None
-        if camada_ponta and camada_ponta.tipo in ['areia', 'silte']:
-            tensao_ponta = 400 * camada_ponta.Nspt  # kPa
-            resistencia_ponta = tensao_ponta * area_ponta
-        else:
-            resistencia_ponta = 9 * camada_ponta.coesao * area_ponta if camada_ponta else 0.0
-        
-        capacidade_total = atrito_lateral_total + resistencia_ponta
-        
-        return {
-            'atrito_lateral': atrito_lateral_total,
-            'resistencia_ponta': resistencia_ponta,
-            'capacidade_total': capacidade_total,
-            'tensoes_laterais': tensoes_laterais,
-            'tensao_ponta_ultima': tensao_ponta if camada_ponta else 0.0
-        }
-    
-    def _metodo_alpha_beta(self, camadas: List[CamadaSoloEstaca],
-                          perimetro: float, area_ponta: float,
-                          nivel_agua: float) -> Dict[str, float]:
-        """
-        Método Alpha-Beta (α-β) para estacas em solos coesivos e granulares
-        """
-        atrito_lateral_total = 0.0
-        tensoes_laterais = []
-        
-        for camada in camadas:
-            profundidade_media = (camada.profundidade_inicio + camada.profundidade_fim) / 2
-            
-            # Determinar tensão vertical efetiva
-            if profundidade_media > nivel_agua:
-                tensao_vertical = camada.peso_especifico_submerso * (profundidade_media - nivel_agua)
-                tensao_vertical += camada.peso_especifico * min(profundidade_media, nivel_agua)
-            else:
-                tensao_vertical = camada.peso_especifico * profundidade_media
-            
-            # Coeficientes Alpha e Beta
-            if camada.tipo == 'argila':
-                # Método Alpha para argilas
-                if camada.coesao <= 25:
-                    alpha = 1.0
-                elif camada.coesao <= 50:
-                    alpha = 0.8
-                elif camada.coesao <= 75:
-                    alpha = 0.6
-                else:
-                    alpha = 0.5
-                
-                tensao_lateral = alpha * camada.coesao
-            else:
-                # Método Beta para solos granulares
-                beta = np.tan(np.radians(camada.angulo_atrito)) * 0.25  # Beta ≈ K * tan(δ)
-                tensao_lateral = beta * tensao_vertical
-            
-            # Limites práticos
-            tensao_lateral = min(tensao_lateral, 200)  # kPa
-            
-            altura_camada = min(camada.espessura, camada.profundidade_fim - camada.profundidade_inicio)
-            area_lateral = perimetro * altura_camada
-            
-            atrito_camada = tensao_lateral * area_lateral
-            atrito_lateral_total += atrito_camada
-            
-            tensoes_laterais.append({
-                'profundidade': camada.profundidade_inicio,
-                'tensao': tensao_lateral,
-                'atrito': atrito_camada,
-                'tensao_vertical': tensao_vertical
-            })
-        
-        # Resistência de ponta
-        camada_ponta = camadas[-1] if camadas else None
-        if camada_ponta:
-            if camada_ponta.tipo == 'argila':
-                tensao_ponta = 9 * camada_ponta.coesao  # Nc = 9 para argilas
-            else:
-                # Para solos granulares
-                Nq = np.exp(np.pi * np.tan(np.radians(camada_ponta.angulo_atrito))) * \
-                     (np.tan(np.radians(45 + camada_ponta.angulo_atrito/2)))**2
-                tensao_ponta = camada_ponta.peso_especifico_submerso * camada_ponta.profundidade_fim * Nq
-            
-            resistencia_ponta = tensao_ponta * area_ponta
-        else:
-            resistencia_ponta = 0.0
-        
-        capacidade_total = atrito_lateral_total + resistencia_ponta
-        
-        return {
-            'atrito_lateral': atrito_lateral_total,
-            'resistencia_ponta': resistencia_ponta,
-            'capacidade_total': capacidade_total,
-            'tensoes_laterais': tensoes_laterais,
-            'tensao_ponta_ultima': tensao_ponta if camada_ponta else 0.0
+            'tensao_ponta_ultima': tensao_ponta
         }
     
     def calcular_recalque_estaca(self, carga: float, estaca: EstacaGeometria,
@@ -345,6 +292,11 @@ class EstacaDesigner:
         """
         Calcula recalques de estacas usando método simplificado
         """
+        if carga <= 0:
+            raise ValueError("Carga deve ser positiva")
+        if modulo_solo <= 0:
+            raise ValueError("Módulo do solo deve ser positivo")
+        
         # Área da seção transversal
         if estaca.forma == 'circular':
             area = np.pi * (estaca.diametro/2)**2
@@ -355,7 +307,11 @@ class EstacaDesigner:
         recalque_elastico = (carga * estaca.comprimento) / (area * estaca.modulo_elasticidade)
         
         # Recalque por compressão do solo
-        fator_solo = 0.001 if tipo_solo == 'areia' else 0.002
+        if tipo_solo == 'areia':
+            fator_solo = 0.001
+        else:
+            fator_solo = 0.002
+        
         recalque_solo = fator_solo * carga / (estaca.diametro * modulo_solo)
         
         # Recalque total
@@ -373,16 +329,30 @@ class EstacaDesigner:
         """
         Calcula eficiência de grupo de estacas
         """
+        if num_estacas <= 0:
+            raise ValueError("Número de estacas deve ser positivo")
+        if espacamento <= 0:
+            raise ValueError("Espaçamento deve ser positivo")
+        if diametro <= 0:
+            raise ValueError("Diâmetro deve ser positivo")
+        
         # Razão espaçamento/diâmetro
         s_D = espacamento / diametro
         
         if tipo_solo == 'argila':
             # Fórmula de Converse-Labarre
-            m = int(np.sqrt(num_estacas))  # Número de estacas em uma linha
-            n = int(np.ceil(num_estacas / m))  # Número de estacas em uma coluna
+            m = int(np.sqrt(num_estacas))
+            n = int(np.ceil(num_estacas / m))
             
-            theta = np.arctan(diametro/espacamento)
-            eficiencia = 1 - (theta * (m * (n - 1) + n * (m - 1)) / (90 * m * n))
+            if espacamento > 0 and diametro > 0:
+                theta = np.arctan(diametro/espacamento)
+            else:
+                theta = 0
+            
+            if m > 0 and n > 0:
+                eficiencia = 1 - (theta * (m * (n - 1) + n * (m - 1)) / (90 * m * n))
+            else:
+                eficiencia = 1.0
         else:
             # Para solos granulares
             if s_D >= 3:
@@ -403,36 +373,38 @@ class EstacaDesigner:
     def gerar_relatorio_estaca(self, resultados: Dict[str, Any]) -> str:
         """Gera relatório técnico da análise de estacas"""
         relatorio = f"""
-        =================================================
-        RELATÓRIO DE PROJETO DE ESTACA
-        Método: {resultados['metodo'].upper()}
-        =================================================
-        
-        PARÂMETROS DA ESTACA:
-        - Tipo: {resultados['estaca']['tipo']}
-        - Diâmetro: {resultados['estaca']['diametro']:.2f} m
-        - Comprimento: {resultados['estaca']['comprimento']:.2f} m
-        - Material: {resultados['estaca']['material']}
-        
-        RESULTADOS DA CAPACIDADE DE CARGA:
-        - Atrito lateral total: {resultados['atrito_lateral']:.0f} kN
-        - Resistência de ponta: {resultados['resistencia_ponta']:.0f} kN
-        - Capacidade total última: {resultados['capacidade_total']:.0f} kN
-        - Capacidade admissível (FS=2): {resultados['capacidade_admissivel']:.0f} kN
-        
-        INFORMAÇÕES ADICIONAIS:
-        - Tensão na ponta: {resultados.get('tensao_ponta_ultima', 0):.0f} kPa
-        - Método utilizado: {resultados['metodo']}
-        
-        RECOMENDAÇÕES:
-        1. Verificar recalques para carga de {resultados['capacidade_admissivel']:.0f} kN
-        2. Realizar prova de carga para confirmação
-        3. Considerar efeito de grupo se houver múltiplas estacas
-        
-        Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-        """
+{'='*60}
+RELATÓRIO DE PROJETO DE ESTACA
+Método: {resultados.get('metodo', 'N/A').upper()}
+{'='*60}
+
+PARÂMETROS DA ESTACA:
+• Tipo: {resultados.get('estaca', {}).get('tipo', 'N/A')}
+• Diâmetro: {resultados.get('estaca', {}).get('diametro', 0):.2f} m
+• Comprimento: {resultados.get('estaca', {}).get('comprimento', 0):.2f} m
+• Material: {resultados.get('estaca', {}).get('material', 'N/A')}
+
+RESULTADOS DA CAPACIDADE DE CARGA:
+• Atrito lateral total: {resultados.get('atrito_lateral', 0):.0f} kN
+• Resistência de ponta: {resultados.get('resistencia_ponta', 0):.0f} kN
+• Capacidade total última: {resultados.get('capacidade_total', 0):.0f} kN
+• Capacidade admissível (FS=2): {resultados.get('capacidade_admissivel', 0):.0f} kN
+
+INFORMAÇÕES ADICIONAIS:
+• Tensão na ponta: {resultados.get('tensao_ponta_ultima', 0):.0f} kPa
+• Número de camadas: {resultados.get('camadas', 0)}
+• Nível d'água: {resultados.get('nivel_agua', 0):.1f} m
+
+RECOMENDAÇÕES:
+1. Verificar recalques para carga de {resultados.get('capacidade_admissivel', 0):.0f} kN
+2. Realizar prova de carga para confirmação
+3. Considerar efeito de grupo se houver múltiplas estacas
+
+Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+"""
         
         return relatorio
+
 
 # Função de conveniência para uso no Streamlit
 def criar_designer_estacas() -> EstacaDesigner:

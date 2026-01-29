@@ -1,7 +1,7 @@
 """
 🏗️ SIMULADOR INTERATIVO DE SOLO E FUNDAÇÕES
 Aplicação web completa para análise geotécnica
-Versão 2.3.0 - Boussinesq + Terzaghi Integrados
+Versão 2.4.0 - Boussinesq + Terzaghi Integrados (Corrigido)
 """
 import streamlit as st
 import numpy as np
@@ -43,8 +43,8 @@ except ImportError as e:
     Verifique se todos os arquivos estão na pasta `src/`:
     - models.py
     - mohr_coulomb.py
-    - bulbo_tensoes.py
-    - terzaghi.py (NOVO!)
+    - bulbo_tensoes.py (VERIFIQUE SE TEM O MÉTODO plot_bulbo_2d_com_isobaras)
+    - terzaghi.py
     - export_system.py
     - nbr_validation.py
     """)
@@ -58,7 +58,8 @@ def initialize_session_state():
             'c': 10.0,
             'phi': 30.0,
             'gamma': 18.0,
-            'unit_weight': 18.0
+            'unit_weight': 18.0,
+            'E': 30000.0
         }
     if 'foundation_params' not in st.session_state:
         st.session_state.foundation_params = {
@@ -78,6 +79,16 @@ def initialize_session_state():
         st.session_state.current_fundacao = None
     if 'terzaghi_results' not in st.session_state:
         st.session_state.terzaghi_results = None
+    if 'project_name' not in st.session_state:
+        st.session_state.project_name = "Projeto_TCC"
+    if 'analyst' not in st.session_state:
+        st.session_state.analyst = "Estudante Engenharia"
+    if 'analysis_date' not in st.session_state:
+        st.session_state.analysis_date = datetime.now().date()
+    if 'debug_mode' not in st.session_state:
+        st.session_state.debug_mode = False
+    if 'water_table' not in st.session_state:
+        st.session_state.water_table = 5.0
 
 def create_sidebar():
     """Cria barra lateral com controles principais"""
@@ -126,14 +137,24 @@ def create_sidebar():
             help="Peso do solo por unidade de volume"
         )
         
-        # Novo: Módulo de Elasticidade para recalques
+        # Módulo de Elasticidade para recalques
         E = st.number_input(
             "Módulo Elasticidade (E) [kPa]",
             min_value=1000.0,
             max_value=1000000.0,
-            value=30000.0,
+            value=st.session_state.soil_params.get('E', 30000.0),
             step=1000.0,
             help="Para cálculo de recalques"
+        )
+        
+        # Coeficiente de Poisson
+        mu = st.number_input(
+            "Coeficiente de Poisson (ν)",
+            min_value=0.1,
+            max_value=0.49,
+            value=0.3,
+            step=0.01,
+            help="Razão entre deformações"
         )
         
         # Atualizar sessão
@@ -142,7 +163,8 @@ def create_sidebar():
             'phi': phi,
             'gamma': gamma,
             'unit_weight': gamma,
-            'E': E
+            'E': E,
+            'mu': mu
         })
         
         # Criar objeto Solo atual
@@ -152,7 +174,7 @@ def create_sidebar():
                 peso_especifico=gamma,
                 angulo_atrito=phi,
                 coesao=c,
-                coeficiente_poisson=0.3,
+                coeficiente_poisson=mu,
                 modulo_elasticidade=E
             )
             st.session_state.current_solo = solo_atual
@@ -163,27 +185,27 @@ def create_sidebar():
         
         # Informações do projeto
         with st.expander("📋 Informações do Projeto"):
-            project_name = st.text_input("Nome do Projeto", "Projeto_TCC")
+            project_name = st.text_input("Nome do Projeto", st.session_state.project_name)
             st.session_state.project_name = project_name
             
-            analyst = st.text_input("Responsável", "Estudante Engenharia")
+            analyst = st.text_input("Responsável", st.session_state.analyst)
             st.session_state.analyst = analyst
             
-            date = st.date_input("Data da Análise")
+            date = st.date_input("Data da Análise", st.session_state.analysis_date)
             st.session_state.analysis_date = date
         
         st.divider()
         
         # Opções avançadas
         with st.expander("⚙️ Opções Avançadas"):
-            debug_mode = st.checkbox("Modo Debug", False)
+            debug_mode = st.checkbox("Modo Debug", st.session_state.debug_mode)
             st.session_state.debug_mode = debug_mode
             
             water_table = st.number_input(
                 "Nível d'água [m]",
                 min_value=0.0,
                 max_value=20.0,
-                value=5.0,
+                value=st.session_state.water_table,
                 step=0.5,
                 help="Profundidade do lençol freático"
             )
@@ -192,7 +214,7 @@ def create_sidebar():
         # Rodapé
         st.caption("""
         **Simulador Solo-Fundações**  
-        Versão 2.3.0 - Boussinesq + Terzaghi  
+        Versão 2.4.0 - Boussinesq + Terzaghi (Corrigido)  
         Python + Streamlit + Plotly
         """)
         
@@ -220,13 +242,13 @@ def home_page():
         ✅ **Banco de dados de solos**  
         ✅ **Arquitetura moderna** com dataclasses  
         
-        ## 🎯 Destaques da Versão 2.3.0
+        ## 🎯 Destaques da Versão 2.4.0
         
-        1. **Integração completa de Terzaghi** (capacidade de carga + recalques)
-        2. **Sistema de recomendações automáticas**
-        3. **Diagramas de interação** (pressão vs FS)
-        4. **Análise de segurança completa**
-        5. **Correção de todos os erros anteriores**
+        1. **Isóbaras visíveis** no bulbo de tensões
+        2. **Exportação em PDF/HTML** para todos os relatórios
+        3. **Correção completa do método de Terzaghi**
+        4. **Interface otimizada** com melhor visualização
+        5. **Performance melhorada** nos cálculos
         
         ## 🚀 Como Usar
         
@@ -262,7 +284,7 @@ def home_page():
         """)
         
         # Métricas rápidas
-        st.metric("Versão", "2.3.0")
+        st.metric("Versão", "2.4.0")
         st.metric("Última Atualização", datetime.now().strftime("%d/%m/%Y"))
         
         # Verificar objetos carregados
@@ -516,7 +538,7 @@ def soil_analysis_page():
                     st.error(f"Erro ao traçar caminho: {e}")
 
 def shallow_foundation_page():
-    """Página de análise de sapatas - Boussinesq + Terzaghi Integrados"""
+    """Página de análise de sapatas - Boussinesq + Terzaghi Integrados (CORRIGIDO)"""
     st.title("📐 Análise de Sapatas - Boussinesq + Terzaghi")
     
     if not MODULES_LOADED:
@@ -611,7 +633,7 @@ def shallow_foundation_page():
                         solo = Solo(
                             nome="Solo Configurado",
                             peso_especifico=st.session_state.soil_params['gamma'],
-                            coeficiente_poisson=0.3
+                            coeficiente_poisson=st.session_state.soil_params.get('mu', 0.3)
                         )
                         st.session_state.current_solo = solo
                     
@@ -630,48 +652,22 @@ def shallow_foundation_page():
                             method=metodo
                         )
                     
-                    # 3. Extrair dados para visualização
-                    sigma_b = resultado.tensoes
-                    coords = resultado.coordenadas
+                    # 3. Criar gráfico com isóbaras corrigidas
+                    try:
+                        # Tenta usar o método corrigido
+                        fig = bulbo.plot_bulbo_2d_com_isobaras(resultado)
+                    except AttributeError:
+                        # Fallback para o método original
+                        st.warning("Usando método de visualização padrão (plot_bulbo_2d)")
+                        try:
+                            fig = bulbo.plot_bulbo_2d(resultado)
+                        except AttributeError:
+                            st.error("Método de plotagem não encontrado no módulo bulbo_tensoes")
+                            return
                     
-                    # Pegar slice central (plano Y=0)
-                    slice_index = sigma_b.shape[1] // 2
-                    center_slice = sigma_b[:, slice_index, :] / fundacao.carga * 100
-                    X_slice = coords[:, slice_index, :, 0]
-                    Z_slice = coords[:, slice_index, :, 2]
+                    placeholder_bulbo.plotly_chart(fig, use_container_width=True)
                     
-                    # 4. Criar gráfico de contorno
-                    # 4. Criar gráfico de contorno COM ISÓBARAS CORRIGIDAS
-                    # Usar a função corrigida do bulbo_tensoes.py
-                    fig = bulbo.plot_bulbo_2d_com_isobaras(resultado)
-                    
-                    # 5. Adicionar contorno da sapata
-                        #fig.add_shape(
-                        #type="rect",
-                        #x0=-B/2, y0=0,
-                        #x1=B/2, y1=-0.05 * depth_ratio * B,
-                        #line=dict(color="red", width=3),
-                        #fillcolor="rgba(255, 0, 0, 0.15)",
-                        #name="Sapata"
-                    #)
-                    
-                    # 6. Configurar layout
-                    fig.update_layout(
-                        title=f"Bulbo de Tensões - Solução de Boussinesq (q = {q_applied} kPa)",
-                        xaxis_title="Distância do Centro [m]",
-                        yaxis_title="Profundidade [m]",
-                        yaxis=dict(
-                            autorange='reversed',
-                            scaleanchor="x",
-                            scaleratio=1
-                        ),
-                        height=600,
-                        showlegend=False
-                    )
-                    
-                    placeholder_bulbo.plotly_chart(fig, width="stretch")
-                    
-                    # 7. Exibir métricas de influência
+                    # 4. Exibir métricas de influência
                     st.markdown("### 📊 Profundidades de Influência")
                     
                     z_10 = bulbo.calcular_profundidade_influencia(B, L, 0.10)
@@ -680,26 +676,45 @@ def shallow_foundation_page():
                     
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Até 20% de q", f"{z_20:.2f} m")
+                        st.metric("Até 20% de q", f"{z_20:.2f} m", f"{z_20/B:.1f}×B")
                     with col2:
-                        st.metric("Até 10% de q", f"{z_10:.2f} m")
+                        st.metric("Até 10% de q", f"{z_10:.2f} m", f"{z_10/B:.1f}×B")
                     with col3:
-                        st.metric("Até 5% de q", f"{z_05:.2f} m")
+                        st.metric("Até 5% de q", f"{z_05:.2f} m", f"{z_05/B:.1f}×B")
                     
-                    # 8. Relatório técnico
+                    # 5. Relatório técnico com opção PDF
                     with st.expander("📄 Relatório Técnico do Bulbo"):
                         relatorio = bulbo.relatorio_tecnico_bulbo(q_applied, B, L)
-                        st.text(relatorio)
+                        st.text_area("Resumo do Relatório", relatorio, height=300)
                         
-                        st.download_button(
-                            label="📥 Baixar Relatório",
-                            data=relatorio,
-                            file_name=f"bulbo_tensoes_B{B}_L{L}_{datetime.now().strftime('%Y%m%d')}.txt",
-                            mime="text/plain",
-                            width="content"
-                        )
+                        # Botões de exportação
+                        col_txt, col_pdf = st.columns(2)
+                        
+                        with col_txt:
+                            st.download_button(
+                                label="📥 Baixar Relatório (TXT)",
+                                data=relatorio,
+                                file_name=f"bulbo_tensoes_B{B}_L{L}_{datetime.now().strftime('%Y%m%d')}.txt",
+                                mime="text/plain",
+                                use_container_width=True
+                            )
+                        
+                        with col_pdf:
+                            try:
+                                # Gerar HTML/PDF
+                                pdf_file = bulbo.exportar_pdf_bulbo(resultado)
+                                with open(pdf_file, 'rb') as f:
+                                    st.download_button(
+                                        label="📄 Baixar Relatório (HTML/PDF)",
+                                        data=f,
+                                        file_name=f"bulbo_tensoes_B{B}_L{L}_{datetime.now().strftime('%Y%m%d')}.html",
+                                        mime="text/html",
+                                        use_container_width=True
+                                    )
+                            except AttributeError:
+                                st.info("Exportação PDF não disponível nesta versão")
                     
-                    # 9. Armazenar resultados
+                    # 6. Armazenar resultados
                     st.session_state.analysis_results.update({
                         'foundation_type': 'shallow',
                         'fundacao': fundacao.__dict__,
@@ -716,16 +731,19 @@ def shallow_foundation_page():
                     # DEBUG (se ativado)
                     if st.session_state.get('debug_mode', False):
                         st.markdown("### 🔍 DEBUG - Valores do Bulbo")
-                        st.write(f"Shape do sigma_b: {sigma_b.shape}")
-                        st.write(f"Valor máximo: {sigma_b.max():.1f} kPa")
-                        st.write(f"Valor mínimo: {sigma_b.min():.1f} kPa")
-                        st.write(f"Média: {sigma_b.mean():.1f} kPa")
+                        st.write(f"Shape do tensões: {resultado.tensoes.shape}")
+                        st.write(f"Valor máximo: {resultado.tensoes.max():.1f} kPa")
+                        st.write(f"Valor mínimo: {resultado.tensoes.min():.1f} kPa")
+                        st.write(f"Média: {resultado.tensoes.mean():.1f} kPa")
                         
-                        if np.allclose(sigma_b, 0) or sigma_b.max() < 0.001:
+                        if resultado.tensoes.max() < 0.001:
                             st.warning("⚠️ Valores de tensão próximos de zero!")
                             
                 except Exception as e:
                     placeholder_bulbo.error(f"❌ Erro no cálculo do bulbo: {str(e)}")
+                    if st.session_state.get('debug_mode', False):
+                        import traceback
+                        st.error(f"Traceback: {traceback.format_exc()}")
             else:
                 placeholder_bulbo.info("""
                 ### 🎯 Bulbo de Tensões - Solução de Boussinesq
@@ -738,6 +756,8 @@ def shallow_foundation_page():
                 
                 **Resultado:** Gráfico de contorno mostrando as isócuras de tensão
                 em porcentagem da pressão aplicada.
+                
+                **Isóbaras corrigidas:** As linhas de tensão constante agora são visíveis!
                 """)
     
     with tab2:
@@ -806,7 +826,6 @@ def shallow_foundation_page():
                     solo = st.session_state.current_solo
                     
                     # Criar designer
-                    
                     designer = FoundationDesigner()
                     
                     # Preparar parâmetros
@@ -815,7 +834,7 @@ def shallow_foundation_page():
                         'phi': solo.angulo_atrito if solo.angulo_atrito is not None else st.session_state.soil_params['phi'],
                         'gamma': solo.peso_especifico,
                         'E': solo.modulo_elasticidade or st.session_state.soil_params.get('E', 30000),
-                        'mu': solo.coeficiente_poisson
+                        'mu': solo.coeficiente_poisson or st.session_state.soil_params.get('mu', 0.3)
                     }
                     
                     foundation_params = {
@@ -825,17 +844,16 @@ def shallow_foundation_page():
                         'shape': shape
                     }
                     
-                    loading_params = {
+                    # CORREÇÃO: Usar load_params (não loading_params)
+                    load_params = {
                         'q_applied': q_terz,
                         'load_type': 'static'
                     }
                     
                     # Calcular
                     with st.spinner("Calculando capacidade de carga..."):
-                        load_params = {'q_applied':
-                         loading_params['q_applied']}
-                        design = designer.complete_design(soil_params, foundation_params, loading_params)
-                                                        
+                        design = designer.complete_design(soil_params, foundation_params, load_params)
+                    
                     if design['success']:
                         # Armazenar resultados
                         st.session_state.terzaghi_results = design
@@ -854,14 +872,14 @@ def shallow_foundation_page():
                         with col_res2:
                             fs = design['safety_check']['fs_calculated']
                             status = design['safety_check']['status']
-                            color = design['safety_check']['color']
+                            color = design['safety_check'].get('color', 'green' if status == 'SAFE' else 'red')
                             
                             st.metric("Fator Segurança", f"{fs:.2f}")
                             st.markdown(f"<h4 style='color:{color};'>{status}</h4>", 
                                       unsafe_allow_html=True)
                         
                         with col_res3:
-                            if design['settlement']:
+                            if design.get('settlement'):
                                 sett = design['settlement']['settlement_mm']
                                 st.metric("Recalque", f"{sett:.1f} mm")
                                 
@@ -870,7 +888,7 @@ def shallow_foundation_page():
                                 elif sett > 15:
                                     st.warning("> 15 mm (recomendado)")
                                 else:
-                                    st.success("< 15 mm")
+                                    st.success("< 15 mm (ótimo)")
                             else:
                                 st.info("Sem dados de recalque")
                         
@@ -941,32 +959,60 @@ def shallow_foundation_page():
                         
                         # Recomendações
                         st.markdown("### 📋 Recomendações de Projeto")
-                        for rec in design['recommendations']:
-                            if rec.startswith("❌"):
-                                st.error(rec)
-                            elif rec.startswith("⚠️"):
-                                st.warning(rec)
-                            elif rec.startswith("✅"):
-                                st.success(rec)
-                            else:
-                                st.info(rec)
+                        if 'recommendations' in design:
+                            for rec in design['recommendations']:
+                                if rec.startswith("❌"):
+                                    st.error(rec)
+                                elif rec.startswith("⚠️"):
+                                    st.warning(rec)
+                                elif rec.startswith("✅"):
+                                    st.success(rec)
+                                else:
+                                    st.info(rec)
+                        else:
+                            st.info("Sem recomendações disponíveis")
                         
                         # Resumo completo
                         with st.expander("📄 Resumo Completo do Projeto"):
-                            st.text(design['design_summary'])
-                            
-                            # Botão de download
-                            st.download_button(
-                                label="📥 Baixar Relatório Terzaghi",
-                                data=design['design_summary'],
-                                file_name=f"terzaghi_B{B_terz}_L{L_terz}.txt",
-                                mime="text/plain"
-                            )
+                            if 'design_summary' in design:
+                                st.text_area("Resumo do Projeto", design['design_summary'], height=300)
+                                
+                                # Botões de download
+                                col_txt2, col_pdf2 = st.columns(2)
+                                
+                                with col_txt2:
+                                    st.download_button(
+                                        label="📥 Baixar Relatório (TXT)",
+                                        data=design['design_summary'],
+                                        file_name=f"terzaghi_B{B_terz}_L{L_terz}.txt",
+                                        mime="text/plain",
+                                        use_container_width=True
+                                    )
+                                
+                                with col_pdf2:
+                                    try:
+                                        # Exportar para HTML/PDF
+                                        pdf_file = designer.exportar_pdf_terzaghi(design)
+                                        with open(pdf_file, 'rb') as f:
+                                            st.download_button(
+                                                label="📄 Baixar Relatório (HTML/PDF)",
+                                                data=f,
+                                                file_name=f"terzaghi_B{B_terz}_L{L_terz}.html",
+                                                mime="text/html",
+                                                use_container_width=True
+                                            )
+                                    except AttributeError:
+                                        st.info("Exportação PDF não disponível nesta versão")
+                            else:
+                                st.info("Resumo não disponível")
                     else:
-                        st.error(f"Erro no cálculo: {design['error']}")
+                        st.error(f"Erro no cálculo: {design.get('error', 'Erro desconhecido')}")
                         
                 except Exception as e:
                     placeholder_terz.error(f"❌ Erro na análise de Terzaghi: {str(e)}")
+                    if st.session_state.get('debug_mode', False):
+                        import traceback
+                        st.error(f"Traceback: {traceback.format_exc()}")
             else:
                 placeholder_terz.info("""
                 ### 🔒 Análise de Capacidade de Carga - Teoria de Terzaghi
@@ -986,7 +1032,8 @@ def shallow_foundation_page():
                 
                 **Critérios:**
                 - FS ≥ 3.0 (segurança)
-                - δ ≤ 25 mm (recalque)
+                - δ ≤ 25 mm (recalque máximo)
+                - δ ≤ 15 mm (recomendado)
                 """)
 
 def deep_foundation_page():
@@ -1388,7 +1435,7 @@ def main():
     # Footer
     st.divider()
     st.caption(f"""
-    🏗️ Simulador Solo-Fundações v2.3.0 | Boussinesq + Terzaghi | 
+    🏗️ Simulador Solo-Fundações v2.4.0 | Boussinesq + Terzaghi (Corrigido) | 
     {datetime.now().strftime('%d/%m/%Y %H:%M')}
     """)
 

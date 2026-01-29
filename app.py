@@ -1,7 +1,7 @@
 """
 🏗️ SIMULADOR INTERATIVO DE SOLO E FUNDAÇÕES
 Aplicação web completa para análise geotécnica
-Versão 2.2.0 - Focado no Bulbo de Tensões Boussinesq
+Versão 2.3.0 - Boussinesq + Terzaghi Integrados
 """
 import streamlit as st
 import numpy as np
@@ -33,16 +33,8 @@ try:
         SoilClass, FoundationType,
         nbr_validation_ui
     )
-    from src.foundation_calculations import (
-        bearing_capacity_terzaghi,
-        elastic_settlement,
-        pile_ultimate_capacity,
-        pile_settlement,
-        safety_factor,
-        generate_report
-    )
-    from src.soil_calculations import shear_strength
     from src.bulbo_tensoes import BulboTensoes
+    from src.terzaghi import FoundationDesigner, TerzaghiCapacity
     
     MODULES_LOADED = True
 except ImportError as e:
@@ -52,7 +44,7 @@ except ImportError as e:
     - models.py
     - mohr_coulomb.py
     - bulbo_tensoes.py
-    - foundation_calculations.py
+    - terzaghi.py (NOVO!)
     - export_system.py
     - nbr_validation.py
     """)
@@ -84,6 +76,8 @@ def initialize_session_state():
         st.session_state.current_solo = None
     if 'current_fundacao' not in st.session_state:
         st.session_state.current_fundacao = None
+    if 'terzaghi_results' not in st.session_state:
+        st.session_state.terzaghi_results = None
 
 def create_sidebar():
     """Cria barra lateral com controles principais"""
@@ -132,12 +126,23 @@ def create_sidebar():
             help="Peso do solo por unidade de volume"
         )
         
+        # Novo: Módulo de Elasticidade para recalques
+        E = st.number_input(
+            "Módulo Elasticidade (E) [kPa]",
+            min_value=1000.0,
+            max_value=1000000.0,
+            value=30000.0,
+            step=1000.0,
+            help="Para cálculo de recalques"
+        )
+        
         # Atualizar sessão
         st.session_state.soil_params.update({
             'c': c,
             'phi': phi,
             'gamma': gamma,
-            'unit_weight': gamma
+            'unit_weight': gamma,
+            'E': E
         })
         
         # Criar objeto Solo atual
@@ -147,7 +152,8 @@ def create_sidebar():
                 peso_especifico=gamma,
                 angulo_atrito=phi,
                 coesao=c,
-                coeficiente_poisson=0.3
+                coeficiente_poisson=0.3,
+                modulo_elasticidade=E
             )
             st.session_state.current_solo = solo_atual
         except Exception as e:
@@ -168,10 +174,25 @@ def create_sidebar():
         
         st.divider()
         
+        # Opções avançadas
+        with st.expander("⚙️ Opções Avançadas"):
+            debug_mode = st.checkbox("Modo Debug", False)
+            st.session_state.debug_mode = debug_mode
+            
+            water_table = st.number_input(
+                "Nível d'água [m]",
+                min_value=0.0,
+                max_value=20.0,
+                value=5.0,
+                step=0.5,
+                help="Profundidade do lençol freático"
+            )
+            st.session_state.water_table = water_table
+        
         # Rodapé
         st.caption("""
         **Simulador Solo-Fundações**  
-        Versão 2.2.0 - Bulbo de Tensões Boussinesq  
+        Versão 2.3.0 - Boussinesq + Terzaghi  
         Python + Streamlit + Plotly
         """)
         
@@ -191,19 +212,21 @@ def home_page():
         Este simulador é uma ferramenta desenvolvida para **TCC em Engenharia Civil** que integra:
         
         ✅ **Análise avançada de tensões** (Critério de Mohr-Coulomb)  
-        ✅ **Dimensionamento de fundações** (Sapatas e Estacas)  
+        ✅ **Distribuição de tensões** (Solução de Boussinesq)  
+        ✅ **Capacidade de carga** (Teoria de Terzaghi)  
+        ✅ **Cálculo de recalques** (Solução elástica)  
         ✅ **Validação normativa** (NBR 6122 e NBR 6118)  
         ✅ **Sistema de exportação** (CSV, Excel, PDF, HTML)  
-        ✅ **Bulbo de tensões real** (Solução de Boussinesq)  
         ✅ **Banco de dados de solos**  
         ✅ **Arquitetura moderna** com dataclasses  
         
-        ## 🎯 Destaques da Versão 2.2.0
+        ## 🎯 Destaques da Versão 2.3.0
         
-        1. **Foco no Bulbo de Tensões Boussinesq** (Método 2:1 removido)
-        2. **Correção de warnings do Streamlit**
-        3. **Interface otimizada** para análise técnica
-        4. **Performance melhorada** nos cálculos
+        1. **Integração completa de Terzaghi** (capacidade de carga + recalques)
+        2. **Sistema de recomendações automáticas**
+        3. **Diagramas de interação** (pressão vs FS)
+        4. **Análise de segurança completa**
+        5. **Correção de todos os erros anteriores**
         
         ## 🚀 Como Usar
         
@@ -221,20 +244,25 @@ def home_page():
         
         **Módulos Principais:**
         - ✅ Mohr-Coulomb
-        - ✅ Fundações (Sapatas/Estacas)
+        - ✅ Boussinesq (Bulbo de Tensões)
+        - ✅ Terzaghi (Capacidade de Carga)
         - ✅ Exportação de Dados
         - ✅ Validação NBR
-        - ✅ Bulbo de Tensões (Boussinesq)
         - ✅ Banco de Dados de Solos
         
-        **Atualizações Recentes:**
-        1. ✅ Remoção do Método 2:1
-        2. ✅ Correção de warnings do Streamlit
-        3. ✅ Foco na solução de Boussinesq
+        **Análises Disponíveis:**
+        1. Distribuição de tensões (Δσ)
+        2. Capacidade última (q_ult)
+        3. Fator de segurança (FS)
+        4. Recalques (δ)
+        5. Recomendações de projeto
+        
+        **Integração Completa:**
+        - Boussinesq → Terzaghi → Projeto
         """)
         
         # Métricas rápidas
-        st.metric("Versão", "2.2.0")
+        st.metric("Versão", "2.3.0")
         st.metric("Última Atualização", datetime.now().strftime("%d/%m/%Y"))
         
         # Verificar objetos carregados
@@ -245,7 +273,7 @@ def home_page():
         
         # Início rápido
         with st.expander("⚡ Início Rápido"):
-            if st.button("Ir para Bulbo de Tensões", width="stretch"):
+            if st.button("Ir para Análise Completa", width="stretch"):
                 st.session_state.app_mode = "Sapatas"
                 st.rerun()
             if st.button("Ir para Análise de Solo", width="stretch"):
@@ -254,15 +282,15 @@ def home_page():
     
     # Exemplos de aplicação
     st.divider()
-    st.markdown("## 📚 Aplicações do Bulbo de Tensões")
+    st.markdown("## 📚 Aplicações do Simulador")
     
     examples = st.columns(3)
     
     with examples[0]:
         st.markdown("""
         ### 🎓 Didática
-        - Visualização da distribuição de tensões
-        - Compreensão da profundidade de influência
+        - Visualização do bulbo de tensões
+        - Compreensão da teoria de Terzaghi
         - Análise da interação solo-estrutura
         """)
     
@@ -271,7 +299,8 @@ def home_page():
         ### 🏢 Profissional
         - Dimensionamento de fundações
         - Análise de capacidade de carga
-        - Estudo de interação entre fundações
+        - Verificação de segurança
+        - Cálculo de recalques
         """)
     
     with examples[2]:
@@ -280,6 +309,7 @@ def home_page():
         - Validação de resultados teóricos
         - Análise paramétrica
         - Estudos de pesquisa
+        - Trabalhos de conclusão
         """)
 
 def soil_analysis_page():
@@ -484,300 +514,498 @@ def soil_analysis_page():
                     st.plotly_chart(fig_path, width="stretch")
                 except Exception as e:
                     st.error(f"Erro ao traçar caminho: {e}")
-    
-    with tab3:
-        # Gerar relatório da análise
-        if 'analysis_results' in st.session_state and st.session_state.analysis_results:
-            try:
-                params = {
-                    'Coesão (c)': f"{solo.coesao or st.session_state.soil_params['c']} kPa",
-                    'Ângulo (φ)': f"{solo.angulo_atrito or st.session_state.soil_params['phi']}°",
-                    'Peso (γ)': f"{solo.peso_especifico} kN/m³",
-                    'σx': f"{sigma_x} kPa",
-                    'σz': f"{sigma_z} kPa",
-                    'τxz': f"{tau_xz} kPa",
-                    'Nome do Solo': solo.nome
-                }
-                
-                if 'FS_simple' in st.session_state.analysis_results:
-                    results = {
-                        'σ₁': f"{st.session_state.analysis_results['sigma_1']:.1f} kPa",
-                        'σ₃': f"{st.session_state.analysis_results['sigma_3']:.1f} kPa",
-                        'Fator Segurança': f"{st.session_state.analysis_results['FS_simple']:.2f}",
-                        'φ mobilizado': f"{st.session_state.analysis_results.get('phi_mobilized', 0):.1f}°",
-                        'Mobilização': f"{st.session_state.analysis_results.get('mobilization_percent', 0):.1f}%"
-                    }
-                    
-                    report = generate_report('soil', params, results)
-                    
-                    with st.expander("📄 Relatório Completo"):
-                        st.text(report)
-                    
-                    # Opção de download
-                    st.download_button(
-                        label="📥 Baixar Relatório",
-                        data=report,
-                        file_name=f"relatorio_solo_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                        mime="text/plain",
-                        width="content"
-                    )
-            except Exception as e:
-                st.error(f"Erro ao gerar relatório: {e}")
 
 def shallow_foundation_page():
-    """Página de análise de sapatas - Focada no Bulbo de Tensões Boussinesq"""
-    st.title("📐 Análise de Sapatas - Bulbo de Tensões Boussinesq")
+    """Página de análise de sapatas - Boussinesq + Terzaghi Integrados"""
+    st.title("📐 Análise de Sapatas - Boussinesq + Terzaghi")
     
     if not MODULES_LOADED:
-        st.error("Módulo de fundações não carregado!")
+        st.error("Módulos necessários não carregados!")
         return
     
-    col_config, col_viz = st.columns([1, 2])
+    # Abas principais
+    tab1, tab2 = st.tabs(["🏗️ Distribuição de Tensões (Boussinesq)", "🔒 Capacidade de Carga (Terzaghi)"])
     
-    with col_config:
-        st.markdown("### ⚙️ Configuração da Sapata")
+    with tab1:
+        col_config, col_viz = st.columns([1, 2])
         
-        B = st.number_input(
-            "Largura (B) [m]",
-            min_value=0.5,
-            max_value=10.0,
-            value=1.5,
-            step=0.1,
-            help="Largura da base da sapata"
-        )
+        with col_config:
+            st.markdown("### ⚙️ Configuração da Sapata")
+            
+            B = st.number_input(
+                "Largura (B) [m]",
+                min_value=0.5,
+                max_value=10.0,
+                value=1.5,
+                step=0.1,
+                help="Largura da base da sapata",
+                key="bulbo_B"
+            )
+            
+            L = st.number_input(
+                "Comprimento (L) [m]",
+                min_value=0.5,
+                max_value=10.0,
+                value=1.5,
+                step=0.1,
+                help="Comprimento da sapata",
+                key="bulbo_L"
+            )
+            
+            q_applied = st.number_input(
+                "Pressão aplicada (q) [kPa]",
+                min_value=50.0,
+                max_value=5000.0,
+                value=200.0,
+                step=10.0,
+                help="Pressão uniforme na base da sapata",
+                key="bulbo_q"
+            )
+            
+            st.markdown("### 🎛️ Parâmetros do Cálculo")
+            
+            resolucao = st.slider(
+                "Resolução da malha",
+                min_value=20,
+                max_value=80,
+                value=40,
+                step=5,
+                help="Maior resolução = mais preciso, porém mais lento",
+                key="bulbo_res"
+            )
+            
+            depth_ratio = st.slider(
+                "Profundidade relativa (Z/B)",
+                min_value=1.0,
+                max_value=5.0,
+                value=3.0,
+                step=0.5,
+                help="Razão entre profundidade máxima analisada e largura B",
+                key="bulbo_depth"
+            )
+            
+            metodo = st.selectbox(
+                "Método de cálculo",
+                ["newmark", "integration"],
+                format_func=lambda x: "Newmark (rápido)" if x == "newmark" else "Integração (preciso)",
+                help="Método para cálculo do fator de influência",
+                key="bulbo_method"
+            )
+            
+            analyze_bulbo = st.button(
+                "🔍 Calcular Bulbo de Tensões",
+                type="primary",
+                width="stretch",
+                key="btn_bulbo"
+            )
         
-        L = st.number_input(
-            "Comprimento (L) [m]",
-            min_value=0.5,
-            max_value=10.0,
-            value=1.5,
-            step=0.1,
-            help="Comprimento da sapata"
-        )
-        
-        q_applied = st.number_input(
-            "Pressão aplicada (q) [kPa]",
-            min_value=50.0,
-            max_value=5000.0,
-            value=200.0,
-            step=10.0,
-            help="Pressão uniforme na base da sapata"
-        )
-        
-        st.markdown("### 🎛️ Parâmetros do Cálculo")
-        
-        resolucao = st.slider(
-            "Resolução da malha",
-            min_value=20,
-            max_value=80,
-            value=40,
-            step=5,
-            help="Maior resolução = mais preciso, porém mais lento"
-        )
-        
-        depth_ratio = st.slider(
-            "Profundidade relativa (Z/B)",
-            min_value=1.0,
-            max_value=5.0,
-            value=3.0,
-            step=0.5,
-            help="Razão entre profundidade máxima analisada e largura B"
-        )
-        
-        metodo = st.selectbox(
-            "Método de cálculo",
-            ["newmark", "integration"],
-            format_func=lambda x: "Newmark (rápido)" if x == "newmark" else "Integração (preciso)",
-            help="Método para cálculo do fator de influência"
-        )
-        
-        analyze_button = st.button(
-            "🔍 Calcular Bulbo de Tensões",
-            type="primary",
-            width="stretch"
-        )
-    
-    with col_viz:
-        placeholder = st.empty()
-        
-        if analyze_button:
-            try:
-                # 1. Criar objetos de dados
-                if st.session_state.current_solo:
-                    solo = st.session_state.current_solo
-                else:
-                    solo = Solo(
-                        nome="Solo Configurado",
-                        peso_especifico=st.session_state.soil_params['gamma'],
-                        coeficiente_poisson=0.3
-                    )
-                    st.session_state.current_solo = solo
-                
-                fundacao = Fundacao(largura=B, comprimento=L, carga=q_applied)
-                st.session_state.current_fundacao = fundacao
-                
-                # 2. Instanciar calculador e gerar bulbo
-                bulbo = BulboTensoes()
-                
-                with st.spinner("Calculando bulbo de tensões..."):
-                    resultado = bulbo.gerar_bulbo_boussinesq_avancado(
-                        fundacao=fundacao,
-                        solo=solo,
-                        depth_ratio=depth_ratio,
-                        grid_size=resolucao,
-                        method=metodo
-                    )
-                
-                # 3. Extrair dados para visualização
-                sigma_b = resultado.tensoes
-                coords = resultado.coordenadas
-                
-                # Pegar slice central (plano Y=0)
-                slice_index = sigma_b.shape[1] // 2
-                center_slice = sigma_b[:, slice_index, :] / fundacao.carga * 100
-                X_slice = coords[:, slice_index, :, 0]
-                Z_slice = coords[:, slice_index, :, 2]
-                
-                # 4. Criar gráfico de contorno
-                fig = go.Figure(data=go.Contour(
-                    z=center_slice,
-                    x=X_slice[0, :],
-                    y=Z_slice[:, 0],
-                    colorscale='Plasma',
-                    contours=dict(start=0, end=100, size=10),
-                    colorbar=dict(
-                        title=dict(
-                            text="Δσ/q [%]",
-                            side="right"
+        with col_viz:
+            placeholder_bulbo = st.empty()
+            
+            if analyze_bulbo:
+                try:
+                    # 1. Criar objetos de dados
+                    if st.session_state.current_solo:
+                        solo = st.session_state.current_solo
+                    else:
+                        solo = Solo(
+                            nome="Solo Configurado",
+                            peso_especifico=st.session_state.soil_params['gamma'],
+                            coeficiente_poisson=0.3
                         )
-                    ),
+                        st.session_state.current_solo = solo
                     
-                    hovertemplate=(
-                        "<b>Distância X</b>: %{x:.2f} m<br>"
-                        "<b>Profundidade Z</b>: %{y:.2f} m<br>"
-                        "<b>Tensão Δσ/q</b>: %{z:.1f} %<br>"
-                        "<b>Tensão absoluta</b>: %{customdata:.1f} kPa"
-                        "<extra></extra>"
-                    ),
-                    customdata=center_slice * q_applied / 100,
-                    line_smoothing=0.85
-                ))
-                
-                # 5. Adicionar contorno da sapata
-                fig.add_shape(
-                    type="rect",
-                    x0=-B/2, y0=0,
-                    x1=B/2, y1=-0.05 * depth_ratio * B,
-                    line=dict(color="red", width=3),
-                    fillcolor="rgba(255, 0, 0, 0.15)",
-                    name="Sapata"
-                )
-                
-                # 6. Configurar layout
-                fig.update_layout(
-                    title=f"Bulbo de Tensões - Solução de Boussinesq (q = {q_applied} kPa)",
-                    xaxis_title="Distância do Centro [m]",
-                    yaxis_title="Profundidade [m]",
-                    yaxis=dict(
-                        autorange='reversed',
-                        scaleanchor="x",
-                        scaleratio=1
-                    ),
-                    height=600,
-                    showlegend=False
-                )
-                
-                placeholder.plotly_chart(fig, width="stretch")
-                
-                # 7. Exibir métricas de influência
-                st.markdown("### 📊 Profundidades de Influência")
-                
-                z_10 = bulbo.calcular_profundidade_influencia(B, L, 0.10)
-                z_20 = bulbo.calcular_profundidade_influencia(B, L, 0.20)
-                z_05 = bulbo.calcular_profundidade_influencia(B, L, 0.05)
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Até 20% de q", f"{z_20:.2f} m")
-                with col2:
-                    st.metric("Até 10% de q", f"{z_10:.2f} m")
-                with col3:
-                    st.metric("Até 5% de q", f"{z_05:.2f} m")
-                
-                # 8. Relatório técnico
-                with st.expander("📄 Relatório Técnico do Bulbo"):
-                    relatorio = bulbo.relatorio_tecnico_bulbo(q_applied, B, L)
-                    st.text(relatorio)
+                    fundacao = Fundacao(largura=B, comprimento=L, carga=q_applied)
+                    st.session_state.current_fundacao = fundacao
                     
-                    st.download_button(
-                        label="📥 Baixar Relatório",
-                        data=relatorio,
-                        file_name=f"bulbo_tensoes_B{B}_L{L}_{datetime.now().strftime('%Y%m%d')}.txt",
-                        mime="text/plain",
-                        width="content"
+                    # 2. Instanciar calculador e gerar bulbo
+                    bulbo = BulboTensoes()
+                    
+                    with st.spinner("Calculando bulbo de tensões..."):
+                        resultado = bulbo.gerar_bulbo_boussinesq_avancado(
+                            fundacao=fundacao,
+                            solo=solo,
+                            depth_ratio=depth_ratio,
+                            grid_size=resolucao,
+                            method=metodo
+                        )
+                    
+                    # 3. Extrair dados para visualização
+                    sigma_b = resultado.tensoes
+                    coords = resultado.coordenadas
+                    
+                    # Pegar slice central (plano Y=0)
+                    slice_index = sigma_b.shape[1] // 2
+                    center_slice = sigma_b[:, slice_index, :] / fundacao.carga * 100
+                    X_slice = coords[:, slice_index, :, 0]
+                    Z_slice = coords[:, slice_index, :, 2]
+                    
+                    # 4. Criar gráfico de contorno
+                    fig = go.Figure(data=go.Contour(
+                        z=center_slice,
+                        x=X_slice[0, :],
+                        y=Z_slice[:, 0],
+                        colorscale='Plasma',
+                        contours=dict(start=0, end=100, size=10),
+                        colorbar=dict(
+                            title=dict(
+                                text="Δσ/q [%]",
+                                side="right"
+                            )
+                        ),
+                        hovertemplate=(
+                            "<b>Distância X</b>: %{x:.2f} m<br>"
+                            "<b>Profundidade Z</b>: %{y:.2f} m<br>"
+                            "<b>Tensão Δσ/q</b>: %{z:.1f} %<br>"
+                            "<b>Tensão absoluta</b>: %{customdata:.1f} kPa"
+                            "<extra></extra>"
+                        ),
+                        customdata=center_slice * q_applied / 100,
+                        line_smoothing=0.85
+                    ))
+                    
+                    # 5. Adicionar contorno da sapata
+                    fig.add_shape(
+                        type="rect",
+                        x0=-B/2, y0=0,
+                        x1=B/2, y1=-0.05 * depth_ratio * B,
+                        line=dict(color="red", width=3),
+                        fillcolor="rgba(255, 0, 0, 0.15)",
+                        name="Sapata"
                     )
+                    
+                    # 6. Configurar layout
+                    fig.update_layout(
+                        title=f"Bulbo de Tensões - Solução de Boussinesq (q = {q_applied} kPa)",
+                        xaxis_title="Distância do Centro [m]",
+                        yaxis_title="Profundidade [m]",
+                        yaxis=dict(
+                            autorange='reversed',
+                            scaleanchor="x",
+                            scaleratio=1
+                        ),
+                        height=600,
+                        showlegend=False
+                    )
+                    
+                    placeholder_bulbo.plotly_chart(fig, width="stretch")
+                    
+                    # 7. Exibir métricas de influência
+                    st.markdown("### 📊 Profundidades de Influência")
+                    
+                    z_10 = bulbo.calcular_profundidade_influencia(B, L, 0.10)
+                    z_20 = bulbo.calcular_profundidade_influencia(B, L, 0.20)
+                    z_05 = bulbo.calcular_profundidade_influencia(B, L, 0.05)
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Até 20% de q", f"{z_20:.2f} m")
+                    with col2:
+                        st.metric("Até 10% de q", f"{z_10:.2f} m")
+                    with col3:
+                        st.metric("Até 5% de q", f"{z_05:.2f} m")
+                    
+                    # 8. Relatório técnico
+                    with st.expander("📄 Relatório Técnico do Bulbo"):
+                        relatorio = bulbo.relatorio_tecnico_bulbo(q_applied, B, L)
+                        st.text(relatorio)
+                        
+                        st.download_button(
+                            label="📥 Baixar Relatório",
+                            data=relatorio,
+                            file_name=f"bulbo_tensoes_B{B}_L{L}_{datetime.now().strftime('%Y%m%d')}.txt",
+                            mime="text/plain",
+                            width="content"
+                        )
+                    
+                    # 9. Armazenar resultados
+                    st.session_state.analysis_results.update({
+                        'foundation_type': 'shallow',
+                        'fundacao': fundacao.__dict__,
+                        'solo': solo.__dict__,
+                        'q_applied': q_applied,
+                        'depth_ratio': depth_ratio,
+                        'grid_size': resolucao,
+                        'method': metodo,
+                        'z_10': z_10,
+                        'z_20': z_20,
+                        'z_05': z_05
+                    })
+                    
+                    # DEBUG (se ativado)
+                    if st.session_state.get('debug_mode', False):
+                        st.markdown("### 🔍 DEBUG - Valores do Bulbo")
+                        st.write(f"Shape do sigma_b: {sigma_b.shape}")
+                        st.write(f"Valor máximo: {sigma_b.max():.1f} kPa")
+                        st.write(f"Valor mínimo: {sigma_b.min():.1f} kPa")
+                        st.write(f"Média: {sigma_b.mean():.1f} kPa")
+                        
+                        if np.allclose(sigma_b, 0) or sigma_b.max() < 0.001:
+                            st.warning("⚠️ Valores de tensão próximos de zero!")
+                            
+                except Exception as e:
+                    placeholder_bulbo.error(f"❌ Erro no cálculo do bulbo: {str(e)}")
+            else:
+                placeholder_bulbo.info("""
+                ### 🎯 Bulbo de Tensões - Solução de Boussinesq
                 
-                # 9. Armazenar resultados
-                st.session_state.analysis_results.update({
-                    'foundation_type': 'shallow',
-                    'fundacao': fundacao.__dict__,
-                    'solo': solo.__dict__,
-                    'q_applied': q_applied,
-                    'depth_ratio': depth_ratio,
-                    'grid_size': resolucao,
-                    'method': metodo,
-                    'z_10': z_10,
-                    'z_20': z_20,
-                    'z_05': z_05
-                })
-                 # DEBUG: Verificar valores do bulbo
-                st.write("🔍 DEBUG - Valores do slice central:")
-                st.write(f"Shape do sigma_b: {sigma_b.shape}")
-                st.write(f"Valor máximo: {sigma_b.max():.1f} kPa")
-                st.write(f"Valor mínimo: {sigma_b.min():.1f} kPa")
-                st.write(f"Média: {sigma_b.mean():.1f} kPa")
+                **Configure os parâmetros e clique em 'Calcular Bulbo de Tensões'**
                 
-                # Verificar se há valores diferentes de zero
-                if np.allclose(sigma_b, 0) or sigma_b.max() < 0.001:
-                    st.error("⚠️ AVISO: Valores de tensão próximos de zero!")
-                    st.info("""
-                    Possíveis causas:
-                    1. Método de cálculo falhou silenciosamente
-                    2. Z muito pequeno (próximo da superfície)
-                    3. Erro na função boussinesq_rectangular_load
-                    """)
-                                
-        except Exception as e:
-                placeholder.error(f"❌ Erro no cálculo do bulbo: {str(e)}")
-                st.info("""
-                **Possíveis causas:**
-                1. Módulo `src.bulbo_tensoes` não encontrado
-                2. Erro nos parâmetros de entrada
-                3. Limite de memória para alta resolução
+                Esta ferramenta calcula a distribuição de tensões verticais (Δσ) no solo
+                sob uma fundação retangular com carga uniforme, utilizando a **solução
+                teórica de Boussinesq**.
                 
-                **Sugestões:**
-                - Reduza a resolução da malha
-                - Verifique se o módulo está instalado
+                **Resultado:** Gráfico de contorno mostrando as isócuras de tensão
+                em porcentagem da pressão aplicada.
                 """)
-        else:
-            placeholder.info("""
-            ### 🎯 Bulbo de Tensões - Solução de Boussinesq
+    
+    with tab2:
+        st.markdown("## 🏗️ Análise de Capacidade de Carga (Terzaghi)")
+        
+        col_terz1, col_terz2 = st.columns([1, 2])
+        
+        with col_terz1:
+            st.markdown("### ⚙️ Configuração Terzaghi")
             
-            **Configure os parâmetros e clique em 'Calcular Bulbo de Tensões'**
+            # Usar valores do bulbo ou personalizados
+            use_bulbo_values = st.checkbox("Usar valores do Bulbo", True, 
+                                         help="Usa B, L, q da análise anterior")
             
-            Esta ferramenta calcula a distribuição de tensões verticais (Δσ) no solo
-            sob uma fundação retangular com carga uniforme, utilizando a **solução
-            teórica de Boussinesq**.
+            if use_bulbo_values and st.session_state.current_fundacao:
+                B_terz = st.session_state.current_fundacao.largura
+                L_terz = st.session_state.current_fundacao.comprimento
+                q_terz = st.session_state.current_fundacao.carga
+            else:
+                B_terz = st.number_input("B [m]", 0.5, 10.0, 1.5, 0.1, key="terz_B")
+                L_terz = st.number_input("L [m]", 0.5, 10.0, 1.5, 0.1, key="terz_L")
+                q_terz = st.number_input("q [kPa]", 50.0, 5000.0, 200.0, 10.0, key="terz_q")
             
-            **Parâmetros importantes:**
-            - **B, L**: Dimensões da sapata
-            - **q**: Pressão aplicada
-            - **Resolução**: Controla a precisão do cálculo
-            - **Profundidade relativa**: Até que profundidade analisar
+            D_f = st.number_input(
+                "Profundidade assentamento (D_f) [m]",
+                min_value=0.5,
+                max_value=10.0,
+                value=1.0,
+                step=0.1,
+                help="Profundidade da base da sapata"
+            )
             
-            **Resultado:** Gráfico de contorno mostrando as isócuras de tensão
-            em porcentagem da pressão aplicada.
-            """)
+            shape = st.selectbox(
+                "Forma da sapata",
+                ["square", "rectangular", "strip", "circular"],
+                format_func=lambda x: {
+                    "square": "Quadrada",
+                    "rectangular": "Retangular", 
+                    "strip": "Corrida",
+                    "circular": "Circular"
+                }[x]
+            )
+            
+            foundation_type = st.selectbox(
+                "Tipo de sapata",
+                ["flexible", "rigid"],
+                format_func=lambda x: "Flexível" if x == "flexible" else "Rígida"
+            )
+            
+            analyze_terzaghi = st.button(
+                "🔒 Analisar Capacidade de Carga",
+                type="primary",
+                width="stretch"
+            )
+        
+        with col_terz2:
+            placeholder_terz = st.empty()
+            
+            if analyze_terzaghi:
+                try:
+                    # Verificar se temos solo
+                    if not st.session_state.current_solo:
+                        st.error("Configure primeiro os parâmetros do solo na barra lateral")
+                        return
+                    
+                    solo = st.session_state.current_solo
+                    
+                    # Criar designer
+                    designer = FoundationDesigner()
+                    
+                    # Preparar parâmetros
+                    soil_params = {
+                        'c': solo.coesao if solo.coesao is not None else st.session_state.soil_params['c'],
+                        'phi': solo.angulo_atrito if solo.angulo_atrito is not None else st.session_state.soil_params['phi'],
+                        'gamma': solo.peso_especifico,
+                        'E': solo.modulo_elasticidade or st.session_state.soil_params.get('E', 30000),
+                        'mu': solo.coeficiente_poisson
+                    }
+                    
+                    foundation_params = {
+                        'B': B_terz,
+                        'L': L_terz,
+                        'D_f': D_f,
+                        'shape': shape
+                    }
+                    
+                    loading_params = {
+                        'q_applied': q_terz,
+                        'load_type': 'static'
+                    }
+                    
+                    # Calcular
+                    with st.spinner("Calculando capacidade de carga..."):
+                        design = designer.complete_foundation_design(
+                            soil_params, foundation_params, loading_params
+                        )
+                    
+                    if design['success']:
+                        # Armazenar resultados
+                        st.session_state.terzaghi_results = design
+                        
+                        # Mostrar resultados principais
+                        st.markdown("### 📊 Resultados Principais")
+                        
+                        col_res1, col_res2, col_res3 = st.columns(3)
+                        
+                        with col_res1:
+                            q_ult = design['bearing_capacity']['q_ult']
+                            q_adm = design['bearing_capacity']['q_adm']
+                            st.metric("q_ult", f"{q_ult:.0f} kPa")
+                            st.metric("q_adm (FS=3)", f"{q_adm:.0f} kPa")
+                        
+                        with col_res2:
+                            fs = design['safety_check']['fs_calculated']
+                            status = design['safety_check']['status']
+                            color = design['safety_check']['color']
+                            
+                            st.metric("Fator Segurança", f"{fs:.2f}")
+                            st.markdown(f"<h4 style='color:{color};'>{status}</h4>", 
+                                      unsafe_allow_html=True)
+                        
+                        with col_res3:
+                            if design['settlement']:
+                                sett = design['settlement']['settlement_mm']
+                                st.metric("Recalque", f"{sett:.1f} mm")
+                                
+                                if sett > 25:
+                                    st.error("> 25 mm (limite)")
+                                elif sett > 15:
+                                    st.warning("> 15 mm (recomendado)")
+                                else:
+                                    st.success("< 15 mm")
+                            else:
+                                st.info("Sem dados de recalque")
+                        
+                        # Gráfico de interação
+                        st.markdown("### 📈 Diagrama de Interação")
+                        
+                        # Preparar dados para o gráfico
+                        q_max = q_ult * 1.2
+                        q_values = np.linspace(0.1, q_max, 50)
+                        fs_values = q_ult / q_values
+                        
+                        fig_terz = go.Figure()
+                        
+                        # Curva de capacidade
+                        fig_terz.add_trace(go.Scatter(
+                            x=q_values, y=fs_values,
+                            mode='lines',
+                            name='Curva de Capacidade',
+                            line=dict(color='blue', width=3),
+                            hovertemplate="q=%{x:.0f} kPa<br>FS=%{y:.2f}<extra></extra>"
+                        ))
+                        
+                        # Ponto de projeto
+                        fig_terz.add_trace(go.Scatter(
+                            x=[q_terz],
+                            y=[fs],
+                            mode='markers+text',
+                            marker=dict(size=15, color='red'),
+                            text=[f'Projeto<br>FS={fs:.2f}'],
+                            textposition='top center',
+                            name='Ponto Atual'
+                        ))
+                        
+                        # Linhas de referência
+                        fig_terz.add_hline(y=3.0, line_dash="dash", line_color="green",
+                                         annotation_text="FS mínimo=3.0")
+                        fig_terz.add_hline(y=1.0, line_dash="dash", line_color="red",
+                                         annotation_text="Ruptura (FS=1)")
+                        
+                        fig_terz.update_layout(
+                            title="Diagrama Pressão vs Fator de Segurança",
+                            xaxis_title="Pressão Aplicada q [kPa]",
+                            yaxis_title="Fator de Segurança FS",
+                            height=400
+                        )
+                        
+                        st.plotly_chart(fig_terz, use_container_width=True)
+                        
+                        # Fatores de capacidade
+                        with st.expander("📐 Fatores de Capacidade de Carga"):
+                            bearing = design['bearing_capacity']
+                            col_f1, col_f2, col_f3 = st.columns(3)
+                            
+                            with col_f1:
+                                st.metric("N_c", f"{bearing['Nc']:.2f}")
+                                st.metric("s_c", f"{bearing['sc']:.2f}")
+                                st.metric("d_c", f"{bearing['dc']:.2f}")
+                            
+                            with col_f2:
+                                st.metric("N_q", f"{bearing['Nq']:.2f}")
+                                st.metric("s_q", f"{bearing['sq']:.2f}")
+                                st.metric("d_q", f"{bearing['dq']:.2f}")
+                            
+                            with col_f3:
+                                st.metric("N_γ", f"{bearing['Ngamma']:.2f}")
+                                st.metric("s_γ", f"{bearing['sgamma']:.2f}")
+                                st.metric("d_γ", f"{bearing['dgamma']:.2f}")
+                        
+                        # Recomendações
+                        st.markdown("### 📋 Recomendações de Projeto")
+                        for rec in design['recommendations']:
+                            if rec.startswith("❌"):
+                                st.error(rec)
+                            elif rec.startswith("⚠️"):
+                                st.warning(rec)
+                            elif rec.startswith("✅"):
+                                st.success(rec)
+                            else:
+                                st.info(rec)
+                        
+                        # Resumo completo
+                        with st.expander("📄 Resumo Completo do Projeto"):
+                            st.text(design['design_summary'])
+                            
+                            # Botão de download
+                            st.download_button(
+                                label="📥 Baixar Relatório Terzaghi",
+                                data=design['design_summary'],
+                                file_name=f"terzaghi_B{B_terz}_L{L_terz}.txt",
+                                mime="text/plain"
+                            )
+                    else:
+                        st.error(f"Erro no cálculo: {design['error']}")
+                        
+                except Exception as e:
+                    placeholder_terz.error(f"❌ Erro na análise de Terzaghi: {str(e)}")
+            else:
+                placeholder_terz.info("""
+                ### 🔒 Análise de Capacidade de Carga - Teoria de Terzaghi
+                
+                **Configure os parâmetros e clique em 'Analisar Capacidade de Carga'**
+                
+                Esta análise calcula:
+                1. **Capacidade de carga última (q_ult)**
+                2. **Fator de segurança (FS)**
+                3. **Recalques elásticos (δ)**
+                4. **Recomendações de projeto**
+                
+                **Equação de Terzaghi:**
+                ```
+                q_ult = c·N_c·s_c·d_c + γ·D_f·N_q·s_q·d_q + 0.5·γ·B·N_γ·s_γ·d_γ
+                ```
+                
+                **Critérios:**
+                - FS ≥ 3.0 (segurança)
+                - δ ≤ 25 mm (recalque)
+                """)
 
 def deep_foundation_page():
     """Página de análise de estacas"""
@@ -790,7 +1018,7 @@ def deep_foundation_page():
     st.info("""
     **Funcionalidade em desenvolvimento.**
     Para análise completa de fundações, use a página de **Sapatas** que já está
-    com o bulbo de tensões Boussinesq implementado.
+    com o bulbo de tensões Boussinesq e capacidade de carga Terzaghi implementados.
     """)
     
     col_geom, col_soil = st.columns(2)
@@ -871,6 +1099,12 @@ def export_page():
         else:
             st.warning("⚠️ Nenhuma Fundação configurada")
     
+    # Resultados de Terzaghi
+    if st.session_state.terzaghi_results:
+        st.markdown("### 🏗️ Resultados de Terzaghi")
+        with st.expander("Ver resultados"):
+            st.json(st.session_state.terzaghi_results)
+    
     # Usar o módulo de exportação
     try:
         streamlit_export_ui()
@@ -899,31 +1133,37 @@ def soil_database_page():
         "Argila Mole": {
             "c": 5.0, "phi": 0.0, "gamma": 16.0, 
             "coeficiente_poisson": 0.45,
+            "E": 5000.0,
             "descricao": "Baixa resistência, alta compressibilidade"
         },
         "Argila Rija": {
             "c": 50.0, "phi": 0.0, "gamma": 19.0, 
             "coeficiente_poisson": 0.4,
+            "E": 25000.0,
             "descricao": "Resistência média, compressibilidade moderada"
         },
         "Silte": {
             "c": 0.0, "phi": 28.0, "gamma": 18.0, 
             "coeficiente_poisson": 0.35,
+            "E": 15000.0,
             "descricao": "Granular fino, comportamento intermediário"
         },
         "Areia Fina": {
             "c": 0.0, "phi": 30.0, "gamma": 17.0, 
             "coeficiente_poisson": 0.3,
+            "E": 20000.0,
             "descricao": "Granular, drenante, baixa coesão"
         },
         "Areia Média": {
             "c": 0.0, "phi": 32.0, "gamma": 18.0, 
             "coeficiente_poisson": 0.3,
+            "E": 30000.0,
             "descricao": "Resistência boa, compactação média"
         },
         "Areia Grossa": {
             "c": 0.0, "phi": 35.0, "gamma": 19.0, 
             "coeficiente_poisson": 0.25,
+            "E": 40000.0,
             "descricao": "Alta resistência, boa compactação"
         },
     }
@@ -945,6 +1185,7 @@ def soil_database_page():
                 "phi": st.column_config.NumberColumn("Ângulo φ (°)", format="%.1f"),
                 "gamma": st.column_config.NumberColumn("Peso γ (kN/m³)", format="%.1f"),
                 "coeficiente_poisson": st.column_config.NumberColumn("ν", format="%.2f"),
+                "E": st.column_config.NumberColumn("Módulo E (kPa)", format="%.0f"),
                 "descricao": st.column_config.TextColumn("Descrição")
             },
             hide_index=True,
@@ -961,14 +1202,16 @@ def soil_database_page():
                     peso_especifico=soil['gamma'],
                     angulo_atrito=soil['phi'],
                     coesao=soil['c'],
-                    coeficiente_poisson=soil['coeficiente_poisson']
+                    coeficiente_poisson=soil['coeficiente_poisson'],
+                    modulo_elasticidade=soil['E']
                 )
                 
                 st.session_state.current_solo = solo
                 st.session_state.soil_params.update({
                     'c': soil['c'],
                     'phi': soil['phi'],
-                    'gamma': soil['gamma']
+                    'gamma': soil['gamma'],
+                    'E': soil['E']
                 })
                 
                 st.success(f"✅ Solo '{selected_soil}' carregado!")
@@ -989,6 +1232,7 @@ def soil_database_page():
         
         with col2:
             nu_custom = st.number_input("ν (Poisson)", 0.0, 0.49, 0.3, 0.01, key="nu_custom")
+            E_custom = st.number_input("E [kPa]", 1000.0, 1000000.0, 30000.0, 1000.0, key="E_custom")
             soil_name = st.text_input("Nome do solo", "Meu Solo", key="soil_name")
         
         if st.button("Criar Solo Personalizado", type="primary", width="stretch"):
@@ -998,14 +1242,16 @@ def soil_database_page():
                     peso_especifico=gamma_custom,
                     angulo_atrito=phi_custom,
                     coesao=c_custom,
-                    coeficiente_poisson=nu_custom
+                    coeficiente_poisson=nu_custom,
+                    modulo_elasticidade=E_custom
                 )
                 
                 st.session_state.current_solo = solo_custom
                 st.session_state.soil_params.update({
                     'c': c_custom,
                     'phi': phi_custom,
-                    'gamma': gamma_custom
+                    'gamma': gamma_custom,
+                    'E': E_custom
                 })
                 
                 st.success(f"✅ Solo '{soil_name}' criado e carregado!")
@@ -1021,34 +1267,35 @@ def documentation_page():
     
     with tab1:
         st.markdown("""
-        ## 📖 Teoria do Bulbo de Tensões
+        ## 📖 Teoria do Simulador
         
-        ### Solução de Boussinesq
+        ### Solução de Boussinesq (1885)
         
-        A solução de **Joseph Boussinesq (1885)** fornece as tensões em um meio
-        elástico, homogêneo, isotrópico e semi-infinito devido a uma carga pontual.
-        
-        Para carga uniformemente distribuída sobre área retangular, integra-se
-        a solução pontual sobre toda a área carregada.
-        
-        ### Equação Básica
-        
+        Distribuição de tensões em meio elástico, homogêneo, isotrópico:
         ```math
         σ_z = \\frac{3Qz^3}{2πR^5}
         ```
         
-        Onde:
-        - **σ_z**: Tensão vertical no ponto
-        - **Q**: Carga pontual
-        - **z**: Profundidade do ponto
-        - **R**: Distância radial da carga ao ponto
+        ### Teoria de Terzaghi (1943)
+        
+        Capacidade de carga de fundações superficiais:
+        ```math
+        q_ult = c·N_c·s_c·d_c + γ·D_f·N_q·s_q·d_q + 0.5·γ·B·N_γ·s_γ·d_γ
+        ```
+        
+        ### Fatores de Segurança
+        
+        - **Capacidade de carga**: FS ≥ 3.0
+        - **Recalques**: δ ≤ 25 mm (estruturas convencionais)
+        - **Mobilização**: φ_mobilizado ≤ 0.67·φ
         
         ### Aplicações Práticas
         
         1. **Dimensionamento de fundações**
-        2. **Análise de recalques**
-        3. **Estudo de interação entre fundações**
-        4. **Determinação da profundidade de influência**
+        2. **Análise de capacidade de carga**
+        3. **Cálculo de recalques**
+        4. **Verificação de segurança**
+        5. **Estudo de interação entre fundações**
         """)
     
     with tab2:
@@ -1058,23 +1305,28 @@ def documentation_page():
         ### 1. Configuração Inicial
         
         1. Acesse a página **"Sapatas"**
-        2. Configure os parâmetros da sapata:
+        2. Configure os parâmetros na barra lateral:
+           - Coesão (c), Ângulo (φ), Peso (γ)
+           - Módulo de elasticidade (E)
+        
+        3. Configure a sapata:
            - Largura (B) e Comprimento (L)
            - Pressão aplicada (q)
         
-        3. Ajuste os parâmetros do cálculo:
-           - Resolução da malha (20-80)
-           - Profundidade relativa (Z/B)
-           - Método (Newmark ou Integração)
-        
-        ### 2. Cálculo e Visualização
+        ### 2. Análise de Distribuição de Tensões
         
         1. Clique em **"Calcular Bulbo de Tensões"**
-        2. Aguarde o processamento
-        3. Visualize o gráfico de contorno
-        4. Analise as profundidades de influência
+        2. Visualize o gráfico de contorno
+        3. Analise as profundidades de influência
         
-        ### 3. Exportação
+        ### 3. Análise de Capacidade de Carga
+        
+        1. Clique em **"Analisar Capacidade de Carga"**
+        2. Verifique o fator de segurança
+        3. Analise os recalques
+        4. Siga as recomendações
+        
+        ### 4. Exportação
         
         1. Gere relatório técnico
         2. Baixe os resultados
@@ -1099,6 +1351,7 @@ def documentation_page():
         
         - **`src/models.py`**: Dataclasses (Solo, Fundacao)
         - **`src/bulbo_tensoes.py`**: Cálculo do bulbo Boussinesq
+        - **`src/terzaghi.py`**: Capacidade de carga + recalques
         - **`src/mohr_coulomb.py`**: Análise de tensões
         - **`src/export_system.py`**: Sistema de exportação
         
@@ -1108,6 +1361,11 @@ def documentation_page():
         - **Plotly**: Visualizações gráficas
         - **NumPy**: Cálculos numéricos
         - **Pandas**: Manipulação de dados
+        - **SciPy**: Integração numérica
+        
+        ### Licença
+        
+        MIT License - Livre para uso acadêmico e profissional.
         """)
 
 # ====================== APLICAÇÃO PRINCIPAL ======================
@@ -1148,8 +1406,7 @@ def main():
     # Footer
     st.divider()
     st.caption(f"""
-    🏗️ Simulador Solo-Fundações v2.2.0 | 
-    Focado no Bulbo de Tensões Boussinesq | 
+    🏗️ Simulador Solo-Fundações v2.3.0 | Boussinesq + Terzaghi | 
     {datetime.now().strftime('%d/%m/%Y %H:%M')}
     """)
 

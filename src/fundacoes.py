@@ -241,4 +241,74 @@ def generate_report(foundation_type: str, params: Dict, results: Dict) -> str:
             report_lines.append(f"  {key}: {value:.3f}")
         elif isinstance(value, tuple) and len(value) == 3:  # (Nc, Nq, Nγ)
             Nc, Nq, Nγ = value
-            report_lines.append(f"  {key}: Nc={Nc:.2f}, Nq={Nq:.2f}, Nγ
+            report_lines.append(f"  {key}: Nc={Nc:.2f}, Nq={Nq:.2f}, Nγ={Nγ:.2f}")
+        else:
+            report_lines.append(f"  {key}: {value}")
+    
+    # Verificação de segurança
+    if 'FS' in results and 'is_safe' in results:
+        safety_status = "✅ SEGURO" if results['is_safe'] else "⚠️  ATENÇÃO - Verificar"
+        report_lines.append(f"\n🛡️  FATOR DE SEGURANÇA: {results['FS']:.2f} ({safety_status})")
+    
+    report_lines.append("\n" + "=" * 60)
+    
+    return "\n".join(report_lines)
+
+# ====================== FUNÇÕES DE CONVERSÃO DE UNIDADES ======================
+
+def kPa_para_kgfcm2(kpa: float) -> float:
+    """Converte kPa para kgf/cm²"""
+    return kpa / 98.0665
+
+def kgfcm2_para_kpa(kgfcm2: float) -> float:
+    """Converte kgf/cm² para kPa"""
+    return kgfcm2 * 98.0665
+
+def m_para_cm(m: float) -> float:
+    """Converte metros para centímetros"""
+    return m * 100
+
+def cm_para_m(cm: float) -> float:
+    """Converte centímetros para metros"""
+    return cm / 100
+
+def kN_para_tf(kn: float) -> float:
+    """Converte kN para tf (tonelada-força)"""
+    return kn / 9.80665
+
+def tf_para_kN(tf: float) -> float:
+    """Converte tf (tonelada-força) para kN"""
+    return tf * 9.80665
+
+# ====================== VALIDAÇÃO DE LIMITES NORMAIS ======================
+
+def verificar_limites_nbr6122(parametros: Dict) -> List[str]:
+    """
+    Verifica se os parâmetros estão dentro dos limites da NBR 6122
+    
+    Returns:
+        Lista de avisos/violações
+    """
+    avisos = []
+    
+    # Verificar dimensões mínimas
+    if 'B' in parametros and parametros['B'] < 0.6:
+        avisos.append(f"Largura B={parametros['B']:.2f}m < 0.6m (mínimo NBR 6122)")
+    
+    if 'L' in parametros and parametros['L'] < 0.6:
+        avisos.append(f"Comprimento L={parametros['L']:.2f}m < 0.6m (mínimo NBR 6122)")
+    
+    # Verificar relação L/B
+    if 'B' in parametros and 'L' in parametros and parametros['B'] > 0:
+        relacao = parametros['L'] / parametros['B']
+        if relacao > 3.0:
+            avisos.append(f"Relação L/B={relacao:.1f} > 3.0 (máximo recomendado)")
+    
+    # Verificar pressão admissível típica
+    if 'q_adm' in parametros:
+        if parametros['q_adm'] > 1000:  # kPa
+            avisos.append(f"Pressão admissível muito alta: {parametros['q_adm']:.0f} kPa")
+        elif parametros['q_adm'] < 50:
+            avisos.append(f"Pressão admissível muito baixa: {parametros['q_adm']:.0f} kPa")
+    
+    return avisos
